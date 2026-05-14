@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v13 — Edinburgh HP Hunt</title>
+<title>Greyhound v14 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -128,7 +128,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v13 hybrid bridge</div>
+      <div id="app-sub">Edinburgh · v14 real-distance TSP</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -245,7 +245,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           </div>
         </div>
       </div>
-      <div id="status-bar">v13: Hybrid bridge — OSRM + A* μέσω park entries</div>
+      <div id="status-bar">v14: Real-distance TSP via OSRM Table API</div>
     </div>
   </div>
 
@@ -355,6 +355,36 @@ function havM(a,b){return hav(a,b)*1000;} // meters
 function nn(p){const n=p.length,v=Array(n).fill(false),o=[0];v[0]=true;for(let i=1;i<n;i++){let bb=-1,bd=Infinity;const c=o[o.length-1];for(let j=0;j<n;j++)if(!v[j]){const d=hav(p[c],p[j]);if(d<bd){bd=d;bb=j;}}v[bb]=true;o.push(bb);}return o;}
 function to(p,o){let b=[...o],im=true;while(im){im=false;for(let i=0;i<b.length-1;i++)for(let j=i+2;j<b.length;j++){const a=hav(p[b[i]],p[b[i+1]]),bb=hav(p[b[j]],p[b[(j+1)%b.length]]);const c=hav(p[b[i]],p[b[j]]),d=hav(p[b[i+1]],p[b[(j+1)%b.length]]);if(c+d<a+bb-0.001){b=[...b.slice(0,i+1),...b.slice(i+1,j+1).reverse(),...b.slice(j+1)];im=true;}}}return b;}
 
+// v14: TSP using real-distance matrix
+function nnTSPMatrix(n,matrix){
+  const v=Array(n).fill(false),o=[0];v[0]=true;
+  for(let i=1;i<n;i++){
+    let bb=-1,bd=Infinity;const c=o[o.length-1];
+    for(let j=0;j<n;j++)if(!v[j]){
+      const d=matrix[c][j];
+      if(d<bd){bd=d;bb=j;}
+    }
+    v[bb]=true;o.push(bb);
+  }
+  return o;
+}
+
+function twoOptMatrix(n,o,matrix){
+  let b=[...o],im=true;
+  while(im){
+    im=false;
+    for(let i=0;i<b.length-1;i++)for(let j=i+2;j<b.length;j++){
+      const a=matrix[b[i]][b[i+1]],bb=matrix[b[j]][b[(j+1)%b.length]];
+      const c=matrix[b[i]][b[j]],d=matrix[b[i+1]][b[(j+1)%b.length]];
+      if(c+d<a+bb-0.001){
+        b=[...b.slice(0,i+1),...b.slice(i+1,j+1).reverse(),...b.slice(j+1)];
+        im=true;
+      }
+    }
+  }
+  return b;
+}
+
 async function osrm(f,t){
   try{
     const r=await fetch('https://router.project-osrm.org/route/v1/foot/'+f.lng+','+f.lat+';'+t.lng+','+t.lat+'?overview=full&geometries=geojson');
@@ -362,6 +392,20 @@ async function osrm(f,t){
     const d=await r.json();if(d.code!=='Ok')return null;
     return{coords:d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]),dist:d.routes[0].distance/1000};
   }catch{return null;}
+}
+
+// v14: OSRM Table API — N×N distance matrix in ONE call
+async function osrmTable(points){
+  try{
+    const coords=points.map(p=>p.lng+','+p.lat).join(';');
+    const url='https://router.project-osrm.org/table/v1/foot/'+coords+'?annotations=distance';
+    const r=await fetch(url);
+    if(!r.ok){debug('Table API HTTP '+r.status,'err');return null;}
+    const d=await r.json();
+    if(d.code!=='Ok'){debug('Table API code: '+d.code,'err');return null;}
+    // d.distances is N×N matrix in meters; convert to km
+    return d.distances.map(row=>row.map(m=>m===null?Infinity:m/1000));
+  }catch(e){debug('Table API error: '+e.message,'err');return null;}
 }
 
 // ========== EMBEDDED FALLBACK GRAPH (52 nodes, 90 edges, offline) ==========
@@ -710,6 +754,12 @@ function aStar(graph,startId,goalId){
   return null;
 }
 
+// v14: A* distance only (fast — no coord build, used for matrix overrides)
+async function astarDistanceOnly(from,to){
+  const r=await tryAstarRoute(from,to);
+  return r?r.dist:null;
+}
+
 async function tryAstarRoute(from,to){
   const nodeCount = Object.keys(HOLYROOD).length;
   debug('Using graph (' + nodeCount + ' nodes, source: ' + graphSource + ')', 'ast');
@@ -902,8 +952,69 @@ async function buildRoute(){
   const sp=routeSp();
   if(!sp.length){stat('Δεν υπάρχουν spots.');btn.disabled=false;btn.textContent='▶ Φτιάξε Διαδρομή';return;}
   const om=document.getElementById('order-mode').value;
-  if(om==='manual')routeOrder=sp.map(s=>s.id);
-  else{const o=to(sp,nn(sp));routeOrder=o.map(i=>sp[i].id);}
+
+  if(om==='manual'){
+    routeOrder=sp.map(s=>s.id);
+  } else {
+    // v14: REAL-DISTANCE TSP via OSRM Table API + A* overrides
+    const allPoints=[h,...sp];
+    debug('=== Computing real-distance matrix for '+allPoints.length+' points ===','ast');
+    btn.textContent='Υπολογισμός σειράς...';
+
+    const t0=Date.now();
+    let matrix=await osrmTable(allPoints);
+    const dt=Date.now()-t0;
+
+    if(!matrix){
+      debug('Table API failed, fallback to Haversine TSP','warn');
+      const o=to(sp,nn(sp));
+      routeOrder=o.map(i=>sp[i].id);
+    } else {
+      debug('OSRM Table: '+dt+'ms ('+matrix.length+'x'+matrix.length+' matrix)','ok');
+
+      // v14: OVERRIDE matrix cells where BOTH points are in park (A* is truth there)
+      const useAstar=document.getElementById('use-astar').checked;
+      if(useAstar){
+        let overrides=0;
+        const pairs=[];
+        for(let i=0;i<allPoints.length;i++){
+          for(let j=i+1;j<allPoints.length;j++){
+            if(isInHolyroodPark(allPoints[i])&&isInHolyroodPark(allPoints[j])){
+              pairs.push([i,j]);
+            }
+          }
+        }
+        if(pairs.length>0){
+          debug('Computing A* for '+pairs.length+' in-park pairs','ast');
+          const t1=Date.now();
+          const results=await Promise.all(pairs.map(([i,j])=>astarDistanceOnly(allPoints[i],allPoints[j])));
+          for(let k=0;k<pairs.length;k++){
+            const [i,j]=pairs[k];
+            if(results[k]!==null){
+              matrix[i][j]=results[k];
+              matrix[j][i]=results[k];
+              overrides++;
+            }
+          }
+          debug('A* overrides: '+overrides+'/'+pairs.length+' ('+(Date.now()-t1)+'ms)','ok');
+        }
+      }
+
+      // Run TSP on the real-distance matrix
+      // We start from index 0 (hotel) and visit all spots
+      const n=allPoints.length;
+      const order=twoOptMatrix(n,nnTSPMatrix(n,matrix),matrix);
+      // order[0] is always 0 (hotel); the rest is the visit order in allPoints indices
+      // Map back to spot IDs (skip hotel)
+      routeOrder=order.slice(1).map(idx=>allPoints[idx].id);
+
+      // Log total
+      let total=0;
+      for(let i=0;i<order.length-1;i++)total+=matrix[order[i]][order[i+1]];
+      debug('TSP optimal: '+total.toFixed(2)+'km total','ok');
+    }
+  }
+
   const full=[h,...routeOrder.map(id=>sp.find(s=>s.id===id))];
   segs=[];
 
