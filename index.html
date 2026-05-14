@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v11 — Edinburgh HP Hunt</title>
+<title>Greyhound v12 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -27,7 +27,7 @@ body{font-family:var(--font-sans)}
 #legend{position:absolute;bottom:8px;left:8px;background:rgba(15,5,32,.94);border:1px solid var(--border);border-radius:6px;padding:6px 9px;z-index:500;font-size:10px;color:var(--text-main);display:flex;gap:11px;flex-wrap:wrap;max-width:320px}
 .lg-item{display:flex;align-items:center;gap:5px}
 .lg-line{width:14px;height:3px;border-radius:2px}
-#debug-panel{position:absolute;top:8px;left:8px;background:rgba(15,5,32,.94);border:1px solid var(--border);border-radius:6px;padding:6px 10px;z-index:500;font-size:10px;color:var(--text-main);max-width:280px;display:none}
+#debug-panel{position:absolute;top:8px;left:8px;background:rgba(15,5,32,.94);border:1px solid var(--border);border-radius:6px;padding:6px 10px;z-index:500;font-size:10px;color:var(--text-main);max-width:280px;max-height:60vh;overflow-y:auto;display:none}
 #debug-panel.show{display:block}
 #debug-panel h4{font-size:10px;color:var(--accent2);margin-bottom:4px;font-family:'Cinzel',serif}
 .debug-line{font-family:monospace;font-size:9px;color:var(--text-muted);margin-bottom:2px}
@@ -128,7 +128,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v11 dense graph + proxy</div>
+      <div id="app-sub">Edinburgh · v12 always-A*</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -244,7 +244,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           </div>
         </div>
       </div>
-      <div id="status-bar">v11: 52 nodes offline + 5 mirrors</div>
+      <div id="status-bar">v12: 300m threshold + always-A* στο πάρκο</div>
     </div>
   </div>
 
@@ -294,7 +294,10 @@ function debug(msg, cls){
   line.className='debug-line';
   line.innerHTML=`<span class="${cls||''}">${msg}</span>`;
   el.appendChild(line);
-  while(el.children.length>15)el.removeChild(el.firstChild);
+  while(el.children.length>100)el.removeChild(el.firstChild);
+  // Auto-scroll panel to bottom so newest logs visible
+  const panel=document.getElementById('debug-panel');
+  if(panel)panel.scrollTop=panel.scrollHeight;
 }
 function toggleDebug(){
   document.getElementById('debug-panel').classList.toggle('show',document.getElementById('show-debug').checked);
@@ -689,7 +692,8 @@ async function tryAstarRoute(from,to){
   debug('Using graph (' + nodeCount + ' nodes, source: ' + graphSource + ')', 'ast');
 
   // Adaptive threshold based on graph density
-  const maxDist = nodeCount > 500 ? 150 : nodeCount > 100 ? 300 : 600;
+  // v12: relaxed threshold — dense graphs still have gaps in grass/fields
+  const maxDist = nodeCount > 500 ? 300 : nodeCount > 100 ? 400 : 600;
 
   // NEW v10: Get top 3 candidates for both start and goal
   const startCandidates = findNearestNodes(HOLYROOD, from.lat, from.lng, 3)
@@ -789,21 +793,36 @@ async function buildSegment(from,to,segNum){
 
   const useAstar=document.getElementById('use-astar').checked;
   const nearPark=isInHolyroodPark(from)||isInHolyroodPark(to);
+  const bothInPark=isInHolyroodPark(from)&&isInHolyroodPark(to);
 
-  // Try A* IN PARALLEL if near park (offline, instant)
   let ar=null;
   if(useAstar&&nearPark){
     ar=await tryAstarRoute(from,to);
     if(ar)debug('  A*: '+ar.dist.toFixed(2)+'km via '+ar.nodes+' nodes','ast');
+    else debug('  A*: no path found','warn');
   }
 
-  // Decision logic:
-  // 1. Near park: pick shorter of OSRM/A*
-  // 2. Not near park: use OSRM
-  // 3. Fallback: straight line
+  // v12 SMART DECISION LOGIC:
+  // - If BOTH in park: always prefer A* (OSRM lies about detours)
+  //   EXCEPT if A* is >1.5x worse than OSRM (then OSRM has found a legit shortcut)
+  // - If one in park: pick shorter
+  // - If neither in park: OSRM
+  // - If A* missing entirely: OSRM
+  // - If both missing: straight line off-trail
+
+  if(bothInPark&&ar&&r){
+    // BOTH IN PARK: prefer A* unless dramatically worse
+    if(ar.dist <= r.dist*1.5){
+      debug('  → A* WINS (in-park preferred)','ast');
+      return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
+    }else{
+      debug('  → OSRM wins (A* too long, ratio='+(ar.dist/r.dist).toFixed(2)+')','ok');
+      return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
+    }
+  }
 
   if(nearPark&&ar&&r){
-    // Both available, pick shorter
+    // ONE in park: shorter wins
     if(ar.dist<r.dist){
       debug('  → A* WINS (shorter by '+((r.dist-ar.dist)*1000).toFixed(0)+'m)','ast');
       return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
@@ -819,10 +838,13 @@ async function buildSegment(from,to,segNum){
   }
 
   if(r){
+    // No A* available — check if OSRM is making suspicious detour
+    if(nearPark&&r.dist>straight*2.0){
+      debug('  ⚠ OSRM detour suspected ('+(r.dist/straight).toFixed(1)+'x straight)','warn');
+    }
     return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
   }
 
-  // Final fallback: straight line
   debug('  → Straight line fallback','warn');
   return{
     coords:[[from.lat,from.lng],[to.lat,to.lng]],
