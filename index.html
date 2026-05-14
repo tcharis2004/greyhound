@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v12 — Edinburgh HP Hunt</title>
+<title>Greyhound v13 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -128,7 +128,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v12 always-A*</div>
+      <div id="app-sub">Edinburgh · v13 hybrid bridge</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -147,6 +147,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
       </div>
       <div id="legend">
         <div class="lg-item"><div class="lg-line" style="background:#10b981"></div>Πεζός (OSRM)</div>
+        <div class="lg-item"><div class="lg-line" style="background:#06b6d4"></div>Bridge (OSRM+A*)</div>
         <div class="lg-item"><div class="lg-line" style="background:#3b82f6"></div>Λεωφ.</div>
         <div class="lg-item"><div class="lg-line" style="background:#f59e0b"></div>Taxi</div>
         <div class="lg-item"><div class="lg-line" style="background:#c4b5fd"></div>A* μονοπάτι</div>
@@ -244,7 +245,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           </div>
         </div>
       </div>
-      <div id="status-bar">v12: 300m threshold + always-A* στο πάρκο</div>
+      <div id="status-bar">v13: Hybrid bridge — OSRM + A* μέσω park entries</div>
     </div>
   </div>
 
@@ -380,6 +381,28 @@ let graphSource = 'embedded'; // 'embedded' or 'overpass'
 
 // Holyrood Park geofence
 function isInHolyroodPark(p){return p.lat>55.940&&p.lat<55.955&&p.lng>-3.175&&p.lng<-3.155;}
+
+// v13: Park entry points (where OSRM can deliver you, then A* takes over)
+const HOLYROOD_ENTRIES = [
+  { lat: 55.9523, lng: -3.1719, name: 'Palace' },
+  { lat: 55.9524, lng: -3.1746, name: 'Parliament' },
+  { lat: 55.9474, lng: -3.1814, name: 'Pleasance' },
+  { lat: 55.9490, lng: -3.1822, name: 'Cowgate' },
+  { lat: 55.9412, lng: -3.1697, name: 'Pollock' },
+  { lat: 55.9420, lng: -3.1740, name: 'Newington' },
+  { lat: 55.9550, lng: -3.1640, name: 'Meadowbank' },
+  { lat: 55.9436, lng: -3.1604, name: 'Duddingston' },
+  { lat: 55.9505, lng: -3.1660, name: 'StMargaret' },
+];
+
+function nearestParkEntry(p){
+  let best=null,bd=Infinity;
+  for(const e of HOLYROOD_ENTRIES){
+    const d=hav(p,e);
+    if(d<bd){bd=d;best=e;}
+  }
+  return{entry:best,dist:bd};
+}
 
 // ========== OVERPASS MIRRORS ==========
 const OVERPASS_MIRRORS = [
@@ -784,68 +807,84 @@ async function tryAstarRoute(from,to){
 
 // Old detectOffTrail removed in v8 — now we compare OSRM vs A* directly
 
+// v13 HYBRID BRIDGE ROUTING
+// - Both spots IN park: A* mandatory (OSRM is unreliable for park paths)
+// - Both spots OUT of park: OSRM (existing road network)
+// - MIXED (one in, one out): BRIDGE via nearest park entry
+//     urban_spot → OSRM → entry → A* → park_spot
 async function buildSegment(from,to,segNum){
   const straight=hav(from,to);
   debug('Seg '+segNum+': '+(from.name||'start')+' → '+to.name+' ('+straight.toFixed(2)+'km)','ok');
 
-  const r=await osrm(from,to);
-  debug('  OSRM: '+(r?r.dist.toFixed(2)+'km':'FAILED'),r?'ok':'err');
-
+  const fromInPark=isInHolyroodPark(from);
+  const toInPark=isInHolyroodPark(to);
   const useAstar=document.getElementById('use-astar').checked;
-  const nearPark=isInHolyroodPark(from)||isInHolyroodPark(to);
-  const bothInPark=isInHolyroodPark(from)&&isInHolyroodPark(to);
 
-  let ar=null;
-  if(useAstar&&nearPark){
-    ar=await tryAstarRoute(from,to);
-    if(ar)debug('  A*: '+ar.dist.toFixed(2)+'km via '+ar.nodes+' nodes','ast');
-    else debug('  A*: no path found','warn');
+  // ===== CASE 1: BOTH IN PARK (A* mandatory) =====
+  if(useAstar && fromInPark && toInPark){
+    debug('  [both in park] → mandatory A*','ast');
+    const ar=await tryAstarRoute(from,to);
+    if(ar){
+      debug('  A*: '+ar.dist.toFixed(2)+'km via '+ar.nodes+' nodes','ok');
+      return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
+    }
+    // A* failed: fallback to OSRM as last resort
+    debug('  A* failed, OSRM fallback','warn');
+    const r=await osrm(from,to);
+    if(r)return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
+    return{coords:[[from.lat,from.lng],[to.lat,to.lng]],dist:straight,method:'straight',offTrail:true};
   }
 
-  // v12 SMART DECISION LOGIC:
-  // - If BOTH in park: always prefer A* (OSRM lies about detours)
-  //   EXCEPT if A* is >1.5x worse than OSRM (then OSRM has found a legit shortcut)
-  // - If one in park: pick shorter
-  // - If neither in park: OSRM
-  // - If A* missing entirely: OSRM
-  // - If both missing: straight line off-trail
+  // ===== CASE 2: MIXED — BRIDGE via park entry =====
+  if(useAstar && (fromInPark || toInPark)){
+    // Identify which one is urban
+    const urban = fromInPark ? to : from;
+    const park = fromInPark ? from : to;
+    // Find nearest park entry to URBAN spot
+    const {entry} = nearestParkEntry(urban);
+    debug('  [bridge] urban→'+entry.name+'→park','ast');
 
-  if(bothInPark&&ar&&r){
-    // BOTH IN PARK: prefer A* unless dramatically worse
-    if(ar.dist <= r.dist*1.5){
-      debug('  → A* WINS (in-park preferred)','ast');
-      return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
-    }else{
-      debug('  → OSRM wins (A* too long, ratio='+(ar.dist/r.dist).toFixed(2)+')','ok');
+    // Run OSRM (urban→entry) and A* (entry→park) in parallel
+    const [osrmPart, astarPart] = await Promise.all([
+      osrm(urban, entry),
+      tryAstarRoute(entry, park)
+    ]);
+
+    if(osrmPart && astarPart){
+      // Build correct direction: if fromInPark, we go park→entry→urban (reverse)
+      let coords, dist;
+      if(fromInPark){
+        // from=park, to=urban: park → entry (A* reversed) → entry → urban (OSRM)
+        const astarReversed = [...astarPart.coords].reverse();
+        const osrmReversed = [...osrmPart.coords].reverse();
+        coords = [...astarReversed, ...osrmReversed.slice(1)];
+        dist = astarPart.dist + osrmPart.dist;
+      } else {
+        // from=urban, to=park: urban → entry (OSRM) → entry → park (A*)
+        coords = [...osrmPart.coords, ...astarPart.coords.slice(1)];
+        dist = osrmPart.dist + astarPart.dist;
+      }
+      debug('  Bridge OK: OSRM '+osrmPart.dist.toFixed(2)+'km + A* '+astarPart.dist.toFixed(2)+'km = '+dist.toFixed(2)+'km','ok');
+      return{coords,dist,method:'bridge',offTrail:false,astarInfo:astarPart};
+    }
+
+    // Bridge incomplete — fallback to plain OSRM
+    debug('  Bridge failed (OSRM:'+(!!osrmPart)+', A*:'+(!!astarPart)+'), OSRM fallback','warn');
+    const r=await osrm(from,to);
+    if(r){
+      if(r.dist>straight*2.0)debug('  ⚠ OSRM detour suspected ('+(r.dist/straight).toFixed(1)+'x)','warn');
       return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
     }
+    return{coords:[[from.lat,from.lng],[to.lat,to.lng]],dist:straight,method:'straight',offTrail:true};
   }
 
-  if(nearPark&&ar&&r){
-    // ONE in park: shorter wins
-    if(ar.dist<r.dist){
-      debug('  → A* WINS (shorter by '+((r.dist-ar.dist)*1000).toFixed(0)+'m)','ast');
-      return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
-    }else{
-      debug('  → OSRM wins','ok');
-      return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
-    }
-  }
-
-  if(nearPark&&ar&&!r){
-    debug('  → A* only (OSRM failed)','ast');
-    return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
-  }
-
+  // ===== CASE 3: NEITHER IN PARK (urban → urban) =====
+  const r=await osrm(from,to);
   if(r){
-    // No A* available — check if OSRM is making suspicious detour
-    if(nearPark&&r.dist>straight*2.0){
-      debug('  ⚠ OSRM detour suspected ('+(r.dist/straight).toFixed(1)+'x straight)','warn');
-    }
+    debug('  OSRM: '+r.dist.toFixed(2)+'km','ok');
     return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
   }
-
-  debug('  → Straight line fallback','warn');
+  debug('  All failed → straight line','warn');
   return{
     coords:[[from.lat,from.lng],[to.lat,to.lng]],
     dist:straight,
@@ -895,6 +934,7 @@ async function buildRoute(){
 
 function segColor(s){
   if(s.method==='astar')return ASTAR_COLOR;
+  if(s.method==='bridge')return '#06b6d4'; // cyan for hybrid bridge
   if(s.offTrail)return OFF_COLOR;
   return MC[s.mode];
 }
@@ -927,6 +967,7 @@ function renderSt(){
         '<option value="taxi"'+(s.mode==='taxi'?' selected':'')+'>Taxi</option>'+
       '</select>'+
       (s.method==='astar'?'<span class="rs-astar">★ A* '+(s.astarInfo?s.astarInfo.nodes+' nodes':'')+'</span>':'')+
+      (s.method==='bridge'?'<span class="rs-astar" style="background:#155e75;color:#a5f3fc">⇆ Bridge</span>':'')+
       (s.offTrail?'<span class="rs-off">⚠ Off-trail</span>':'')+
     '</div></div>').join('');
   const td=segs.reduce((a,s)=>a+s.dist,0);
