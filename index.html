@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v14 — Edinburgh HP Hunt</title>
+<title>Greyhound v15 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -128,7 +128,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v14 real-distance TSP</div>
+      <div id="app-sub">Edinburgh · v15 share + mode-aware</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -180,6 +180,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           <div class="sec-lbl">Ενέργειες</div>
           <button id="route-btn" class="action-btn btn-primary" onclick="buildRoute()">▶ Φτιάξε Διαδρομή</button>
           <button class="action-btn btn-secondary" onclick="clearRoute()">✕ Καθαρισμός</button>
+          <button class="action-btn btn-secondary" onclick="shareRoute()" style="background:#1e3a5f">🔗 Μοιράσου διαδρομή</button>
           <button class="action-btn btn-secondary" onclick="refreshPaths()" style="font-size:10px">🔄 Ανανέωση μονοπατιών</button>
           <div class="toggle-row" style="margin-top:8px">
             <input type="checkbox" id="use-astar" checked>
@@ -245,7 +246,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           </div>
         </div>
       </div>
-      <div id="status-bar">v14: Real-distance TSP via OSRM Table API</div>
+      <div id="status-bar">v15: share + mode-aware</div>
     </div>
   </div>
 
@@ -862,9 +863,23 @@ async function tryAstarRoute(from,to){
 // - Both spots OUT of park: OSRM (existing road network)
 // - MIXED (one in, one out): BRIDGE via nearest park entry
 //     urban_spot → OSRM → entry → A* → park_spot
-async function buildSegment(from,to,segNum){
+async function buildSegment(from,to,segNum,mode){
   const straight=hav(from,to);
-  debug('Seg '+segNum+': '+(from.name||'start')+' → '+to.name+' ('+straight.toFixed(2)+'km)','ok');
+  mode=mode||'walk';
+  debug('Seg '+segNum+': '+(from.name||'start')+' → '+to.name+' ('+straight.toFixed(2)+'km, '+mode+')','ok');
+
+  // v15: Mode-aware routing
+  // - walk: A* preferred in park, bridge for mixed
+  // - bus/taxi: always OSRM (uses car-accessible roads only, ignores park paths)
+  if(mode==='bus' || mode==='taxi'){
+    debug('  [mode='+mode+'] → forcing OSRM (vehicle route)','ok');
+    const r=await osrm(from,to);
+    if(r){
+      return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
+    }
+    debug('  OSRM failed → straight line','warn');
+    return{coords:[[from.lat,from.lng],[to.lat,to.lng]],dist:straight,method:'straight',offTrail:true};
+  }
 
   const fromInPark=isInHolyroodPark(from);
   const toInPark=isInHolyroodPark(to);
@@ -1062,7 +1077,24 @@ function drawSegs(){
   });
 }
 
-function chMode(i,m){segs[i].mode=m;segs[i].minutes=Math.round(segs[i].dist/MS[m]);drawSegs();renderSt();updPB();}
+async function chMode(i,m){
+  const oldMode=segs[i].mode;
+  segs[i].mode=m;
+  // v15: If switching between walk and vehicle modes, rebuild segment
+  const wasVehicle=(oldMode==='bus'||oldMode==='taxi');
+  const isVehicle=(m==='bus'||m==='taxi');
+  if(wasVehicle!==isVehicle){
+    debug('Mode change requires reroute: seg '+(i+1)+' '+oldMode+'→'+m,'ast');
+    const seg=await buildSegment(segs[i].from,segs[i].to,i+1,m);
+    segs[i].dist=seg.dist;
+    segs[i].offTrail=seg.offTrail;
+    segs[i].coords=seg.coords;
+    segs[i].method=seg.method;
+    segs[i].astarInfo=seg.astarInfo;
+  }
+  segs[i].minutes=Math.round(segs[i].dist/MS[m]);
+  drawSegs();renderSt();updPB();
+}
 
 function renderSt(){
   const el=document.getElementById('route-steps');
@@ -1147,6 +1179,111 @@ function setCustColor(v){custColor=v;custM.forEach((m,i)=>m.setIcon(custIcon(i+1
 function changeMap(s){if(tile)map.removeLayer(tile);tile=L.tileLayer(TILES[s]||TILES.osm,{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);}
 const F={none:'',grayscale:{bg:'rgba(200,200,200,1)',mode:'color'},sepia:{bg:'rgba(180,140,80,.45)',mode:'multiply'},dark:{bg:'rgba(0,0,0,.45)',mode:'multiply'}};
 function applyFilter(v){const el=document.getElementById('map-overlay');el.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:400';const f=F[v];if(!f||v==='none')return;el.style.background=f.bg;el.style.mixBlendMode=f.mode;}
+// v15: SHARE — encode route state to URL
+function buildShareURL(){
+  const h=getH();
+  const state={
+    v:1, // schema version
+    hotel:document.getElementById('hotel-sel').value,
+    order:document.getElementById('order-mode').value,
+    arts:[...incl], // included artifact ids
+    custom:customSp.map(s=>({n:s.name,a:+s.lat.toFixed(5),o:+s.lng.toFixed(5)})),
+    modes:segs.length?segs.map(s=>s.mode):null
+  };
+  // Compact base64 encode
+  const json=JSON.stringify(state);
+  const b64=btoa(unescape(encodeURIComponent(json)));
+  const url=location.origin+location.pathname+'?r='+b64;
+  return url;
+}
+
+async function shareRoute(){
+  const url=buildShareURL();
+  if(navigator.share){
+    try{
+      await navigator.share({title:'Greyhound — Edinburgh HP Hunt',text:'Δες τη διαδρομή μου!',url});
+      return;
+    }catch(e){/* user cancelled */}
+  }
+  // Fallback: copy to clipboard
+  try{
+    await navigator.clipboard.writeText(url);
+    stat('✓ Σύνδεσμος αντιγράφηκε');
+    setTimeout(()=>stat('v15: share + mode-aware'),3000);
+  }catch{
+    prompt('Αντίγραψε τον σύνδεσμο:',url);
+  }
+}
+
+// v15: LOAD — restore route state from URL
+function loadFromURL(){
+  const params=new URLSearchParams(location.search);
+  const r=params.get('r');
+  if(!r)return false;
+  try{
+    const json=decodeURIComponent(escape(atob(r)));
+    const state=JSON.parse(json);
+    if(state.v!==1){debug('Share URL version mismatch','warn');return false;}
+
+    // Apply hotel
+    if(state.hotel){
+      const sel=document.getElementById('hotel-sel');
+      if([...sel.options].some(o=>o.value===state.hotel)){
+        sel.value=state.hotel;
+        placeH();
+      }
+    }
+    // Apply order mode
+    if(state.order){
+      const om=document.getElementById('order-mode');
+      if([...om.options].some(o=>o.value===state.order))om.value=state.order;
+    }
+    // Apply artifacts
+    incl.clear();
+    if(Array.isArray(state.arts)){
+      for(const id of state.arts)incl.add(id);
+      ARTS.forEach(a=>hpM[a.id]&&hpM[a.id].setIcon(artIcon(a)));
+    }
+    // Apply custom spots
+    customSp.length=0;
+    custM.forEach(m=>map.removeLayer(m));
+    custM.length=0;
+    if(Array.isArray(state.custom)){
+      for(const c of state.custom){
+        const sp={name:c.n,lat:c.a,lng:c.o,id:'c'+Date.now()+Math.random()};
+        customSp.push(sp);
+        const idx=customSp.length;
+        const m=L.marker([sp.lat,sp.lng],{icon:custIcon(idx)}).addTo(map);
+        m.on('click',()=>openCustPopup(sp.id));
+        custM.push(m);
+      }
+    }
+    renderP();updRC();
+    debug('✓ Loaded route from URL: '+customSp.length+' custom + '+incl.size+' artifacts','ok');
+    stat('✓ Διαδρομή φορτώθηκε από URL');
+    setTimeout(()=>stat('v15: share + mode-aware'),3000);
+
+    // Auto-build route if requested
+    if(state.modes&&state.modes.length){
+      setTimeout(async()=>{
+        await buildRoute();
+        // Apply modes to segments after build
+        if(segs.length===state.modes.length){
+          for(let i=0;i<segs.length;i++){
+            if(segs[i].mode!==state.modes[i]){
+              await chMode(i,state.modes[i]);
+            }
+          }
+        }
+      },500);
+    }
+    return true;
+  }catch(e){
+    debug('Load URL failed: '+e.message,'err');
+    return false;
+  }
+}
+
 async function refreshPaths(){
   try{localStorage.removeItem(CACHE_KEY);}catch(e){}
   debug('=== Force refresh ===','ast');
@@ -1159,6 +1296,8 @@ window.addEventListener('load',async()=>{
   init();
   // Load Overpass graph in background
   await initOverpassGraph();
+  // v15: Try to restore route from URL
+  loadFromURL();
 });
 </script>
 </body>
