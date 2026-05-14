@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Greyhound v11 — Edinburgh HP Hunt</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=Inter:wght@400;500;600&display=swap');
+:root{--bg-dark:#1a0a2e;--bg-panel:#0f0520;--accent:#7c3aed;--accent2:#fbbf24;--text-main:#e8d5b7;--text-muted:#a78bfa;--border:#3b1f6b;--font-sans:'Inter',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#000}
+body{font-family:var(--font-sans)}
+#app{display:flex;flex-direction:column;height:100vh;height:100dvh;position:relative;background:var(--bg-panel)}
+#topbar{background:var(--bg-dark);padding:9px 14px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;border-bottom:2px solid var(--accent);z-index:600}
+#app-name{font-family:'Cinzel',serif;font-size:17px;font-weight:600;color:var(--accent2);letter-spacing:1.2px}
+#app-sub{font-size:9px;color:var(--text-muted);margin-top:1px}
+.tb-stats{display:flex;gap:2px}
+.tb-stat{text-align:center;padding:0 6px}
+.tb-stat .lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px}
+.tb-stat .val{font-size:15px;font-weight:600;color:var(--accent2)}
+#main{display:grid;grid-template-columns:1fr 280px;flex:1;min-height:0;position:relative}
+#map-wrap{position:relative;height:100%}
+#map{height:100%;width:100%}
+#map-overlay{position:absolute;inset:0;pointer-events:none;z-index:400}
+#legend{position:absolute;bottom:8px;left:8px;background:rgba(15,5,32,.94);border:1px solid var(--border);border-radius:6px;padding:6px 9px;z-index:500;font-size:10px;color:var(--text-main);display:flex;gap:11px;flex-wrap:wrap;max-width:320px}
+.lg-item{display:flex;align-items:center;gap:5px}
+.lg-line{width:14px;height:3px;border-radius:2px}
+#debug-panel{position:absolute;top:8px;left:8px;background:rgba(15,5,32,.94);border:1px solid var(--border);border-radius:6px;padding:6px 10px;z-index:500;font-size:10px;color:var(--text-main);max-width:280px;display:none}
+#debug-panel.show{display:block}
+#debug-panel h4{font-size:10px;color:var(--accent2);margin-bottom:4px;font-family:'Cinzel',serif}
+.debug-line{font-family:monospace;font-size:9px;color:var(--text-muted);margin-bottom:2px}
+.debug-line .ok{color:#6ee7b7}
+.debug-line .warn{color:#fde68a}
+.debug-line .err{color:#fca5a5}
+.debug-line .ast{color:#c4b5fd}
+#fab{display:none;position:absolute;bottom:18px;right:18px;width:56px;height:56px;border-radius:50%;background:var(--accent);color:white;border:none;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:600;font-size:22px;align-items:center;justify-content:center;font-weight:600}
+#fab .badge{position:absolute;top:-3px;right:-3px;background:var(--accent2);color:var(--bg-dark);font-size:11px;font-weight:700;padding:2px 6px;border-radius:10px;min-width:20px;text-align:center}
+#drawer-backdrop{display:none;position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:700}
+#drawer-backdrop.show{display:block}
+#panel{background:var(--bg-panel);color:var(--text-main);display:flex;flex-direction:column;border-left:1px solid var(--border);overflow:hidden;z-index:500}
+#panel-scroll{overflow-y:auto;flex:1;min-height:0}
+#panel-close{display:none;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:24px;padding:10px 14px;align-self:flex-end}
+.sec{padding:10px 12px;border-bottom:1px solid var(--border)}
+.sec-lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;font-weight:600}
+select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-main);border:1px solid var(--border);border-radius:5px;padding:7px 9px}
+.action-btn{width:100%;font-size:12px;padding:9px;cursor:pointer;border-radius:5px;margin-bottom:5px;border:none;min-height:38px;font-weight:500}
+.btn-primary{background:var(--accent);color:white}
+.btn-primary:disabled{background:var(--border);color:#6b7280;cursor:not-allowed}
+.btn-secondary{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+.tweak-row{display:flex;align-items:center;gap:7px;margin-bottom:6px;font-size:11px;color:var(--text-muted)}
+.tweak-row label{min-width:78px;flex-shrink:0}
+.tweak-row input[type=color]{width:34px;height:26px;border:none;border-radius:4px;padding:0;background:none;cursor:pointer}
+.tweak-row input[type=range]{flex:1;height:26px}
+.tweak-row select{flex:1;font-size:11px;background:var(--bg-dark);color:var(--text-main);border:1px solid var(--border);border-radius:4px;padding:5px 7px}
+.toggle-row{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-muted);margin-bottom:5px}
+.toggle-row input{cursor:pointer}
+.spot-row{display:flex;align-items:center;gap:7px;padding:8px 0;border-bottom:1px solid #1e1040;min-height:44px}
+.spot-row:last-child{border-bottom:none}
+.spot-bubble{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:white;flex-shrink:0;border:1.5px solid rgba(255,255,255,.25)}
+.q-icon{width:26px;height:26px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.spot-name{flex:1;color:var(--text-main);font-size:12px;line-height:1.3}
+.spot-del{background:none;border:none;color:#6b5b8a;font-size:20px;padding:6px 8px;flex-shrink:0;min-width:34px;min-height:34px;cursor:pointer}
+.spot-toggle{background:transparent;border:1px solid var(--border);color:var(--text-muted);font-size:12px;padding:5px 10px;border-radius:4px;flex-shrink:0;min-width:34px;min-height:34px;cursor:pointer}
+.spot-toggle.active{background:var(--accent);color:white;border-color:var(--accent)}
+.tag{font-size:9px;padding:1px 5px;border-radius:3px;display:inline-block;margin-top:2px}
+.tag-art{background:#3b2000;color:#fbbf24}
+.tag-custom{background:#1c3a1c;color:#6ee7b7}
+.tag-done{background:#065f46;color:#6ee7b7}
+.tag-included{background:#3b1f6b;color:#c4b5fd}
+.route-step-badge{font-size:10px;background:var(--accent);color:white;padding:1px 5px;border-radius:3px;margin-right:3px;font-weight:600}
+.route-step{padding:8px 5px;border-bottom:0.5px solid #1e1040;font-size:11px;cursor:pointer;border-radius:3px;min-height:48px}
+.route-step.active{background:#2e1065;border-left:3px solid var(--accent2);padding-left:8px}
+.rs-header{display:flex;align-items:flex-start;gap:7px;margin-bottom:4px}
+.rs-num{font-weight:600;color:var(--accent2);min-width:14px;font-size:12px}
+.rs-from-to{flex:1;color:var(--text-main);font-size:11px}
+.rs-meta{display:flex;gap:6px;padding-left:21px;align-items:center;flex-wrap:wrap}
+.rs-dist{color:var(--text-muted);font-size:10px}
+.rs-mode-sel{font-size:11px;background:var(--bg-dark);color:var(--text-main);border:1px solid var(--border);border-radius:3px;padding:4px 6px;min-height:30px}
+.rs-off{font-size:9px;padding:1px 5px;border-radius:3px;background:#3b1f3f;color:#f0abfc}
+.rs-astar{font-size:9px;padding:1px 5px;border-radius:3px;background:#3b1f6b;color:#c4b5fd}
+#playback{display:flex;gap:5px;align-items:center;margin-top:8px;padding:7px;background:var(--bg-dark);border:1px solid var(--border);border-radius:6px;flex-wrap:wrap}
+.pb-btn{flex:1;font-size:12px;padding:8px;background:var(--accent);color:white;border:none;border-radius:4px;min-height:38px;cursor:pointer}
+.pb-btn:disabled{background:var(--border);color:#6b7280}
+.pb-btn.pb-sec{background:transparent;color:var(--text-muted);border:1px solid var(--border);max-width:42px}
+#pb-status{font-size:10px;color:var(--accent2);text-align:center;flex-basis:100%;margin-top:3px}
+#totals-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+.total-box{background:var(--bg-dark);border:1px solid var(--border);border-radius:6px;padding:7px 5px;text-align:center}
+.total-lbl{font-size:8px;color:var(--text-muted);text-transform:uppercase}
+.total-val{font-size:14px;font-weight:600;color:var(--accent2)}
+#status-bar{font-size:10px;color:#6b7280;padding:6px 12px;text-align:center;border-top:1px solid #1e1040}
+#ar-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.9);z-index:9999;align-items:center;justify-content:center;padding:20px}
+#ar-overlay.show{display:flex}
+#ar-frame{border:2px solid var(--accent);border-radius:14px;padding:22px;max-width:340px;width:100%;text-align:center;background:var(--bg-panel);color:var(--text-main)}
+.ar-em{font-size:52px;display:block;margin-bottom:10px}
+#ar-title{font-family:'Cinzel',serif;font-size:15px;color:var(--accent2);margin-bottom:4px}
+#ar-loc{font-size:11px;color:var(--accent);margin-bottom:10px}
+#ar-story{font-size:12px;color:#c4b5fd;line-height:1.5;margin-bottom:12px}
+#ar-reward{font-size:12px;color:#6ee7b7;padding:7px 9px;background:#052e16;border-radius:5px;margin-bottom:12px}
+.ar-btn{font-size:12px;padding:10px 16px;border-radius:5px;margin:3px;border:none;min-height:40px;cursor:pointer}
+.ar-primary{background:var(--accent);color:white}
+.ar-add{background:#0891b2;color:white}
+.ar-sec{background:transparent;border:1px solid var(--border);color:var(--text-muted)}
+.q-svg.glow{animation:gg 2s infinite}
+@keyframes gg{0%,100%{filter:drop-shadow(0 0 3px var(--art-color)) drop-shadow(0 0 6px var(--art-color));transform:translateY(0)}50%{filter:drop-shadow(0 0 8px var(--art-color)) drop-shadow(0 0 14px var(--art-color));transform:translateY(-3px)}}
+@keyframes cb{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@media (max-width:768px){
+  #app-name{font-size:15px}
+  #app-sub{display:none}
+  #topbar{padding:8px 12px}
+  .tb-stat{padding:0 4px}
+  .tb-stat .lbl{font-size:8px}
+  .tb-stat .val{font-size:13px}
+  #main{grid-template-columns:1fr}
+  #fab{display:flex}
+  #panel{position:absolute;top:0;right:0;bottom:0;width:90%;max-width:360px;transform:translateX(100%);transition:transform .3s;border-left:1px solid var(--border);z-index:800;box-shadow:-6px 0 18px rgba(0,0,0,.5)}
+  #panel.open{transform:translateX(0)}
+  #panel-close{display:block}
+  #legend{font-size:9px;gap:7px;padding:4px 7px;max-width:240px;bottom:90px}
+  #debug-panel{font-size:9px;max-width:230px}
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="topbar">
+    <div>
+      <div id="app-name">Greyhound</div>
+      <div id="app-sub">Edinburgh · v11 dense graph + proxy</div>
+    </div>
+    <div class="tb-stats">
+      <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
+      <div class="tb-stat"><div class="lbl">Artif.</div><div class="val"><span id="t-col">0</span>/5</div></div>
+      <div class="tb-stat"><div class="lbl">Πόντοι</div><div class="val" id="t-pts">0</div></div>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="map-wrap">
+      <div id="map"></div>
+      <div id="map-overlay"></div>
+      <div id="debug-panel">
+        <h4>🔍 Debug Log</h4>
+        <div id="debug-content"></div>
+      </div>
+      <div id="legend">
+        <div class="lg-item"><div class="lg-line" style="background:#10b981"></div>Πεζός (OSRM)</div>
+        <div class="lg-item"><div class="lg-line" style="background:#3b82f6"></div>Λεωφ.</div>
+        <div class="lg-item"><div class="lg-line" style="background:#f59e0b"></div>Taxi</div>
+        <div class="lg-item"><div class="lg-line" style="background:#c4b5fd"></div>A* μονοπάτι</div>
+        <div class="lg-item"><div class="lg-line" style="border-top:2px dashed #9ca3af;height:0"></div>Off-trail</div>
+      </div>
+      <button id="fab" onclick="toggleDrawer()">☰<span class="badge" id="fab-badge" style="display:none">0</span></button>
+    </div>
+
+    <div id="drawer-backdrop" onclick="toggleDrawer()"></div>
+
+    <div id="panel">
+      <button id="panel-close" onclick="toggleDrawer()">✕</button>
+      <div id="panel-scroll">
+        <div class="sec">
+          <div class="sec-lbl">Ξεκίνημα από</div>
+          <select id="hotel-sel" class="ctl">
+            <option value="55.9519,-3.1889">The Balmoral Hotel</option>
+            <option value="55.9472,-3.1935">Grassmarket Hotel</option>
+            <option value="55.9555,-3.2002">Haymarket Hub</option>
+          </select>
+        </div>
+        <div class="sec">
+          <div class="sec-lbl">Σειρά Επίσκεψης</div>
+          <select id="order-mode" class="ctl" onchange="clearRoute()">
+            <option value="optimal">Βέλτιστη (συντομότερη)</option>
+            <option value="manual">Με τη σειρά που πρόσθεσα</option>
+          </select>
+        </div>
+        <div class="sec">
+          <div class="sec-lbl">Ενέργειες</div>
+          <button id="route-btn" class="action-btn btn-primary" onclick="buildRoute()">▶ Φτιάξε Διαδρομή</button>
+          <button class="action-btn btn-secondary" onclick="clearRoute()">✕ Καθαρισμός</button>
+          <button class="action-btn btn-secondary" onclick="refreshPaths()" style="font-size:10px">🔄 Ανανέωση μονοπατιών</button>
+          <div class="toggle-row" style="margin-top:8px">
+            <input type="checkbox" id="use-astar" checked>
+            <label for="use-astar">A* για μονοπάτια λόφου (offline)</label>
+          </div>
+          <div class="toggle-row">
+            <input type="checkbox" id="show-debug" onchange="toggleDebug()">
+            <label for="show-debug">Εμφάνιση debug panel</label>
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sec-lbl">Προσαρμογή UI</div>
+          <div class="tweak-row"><label>Panel / Bar</label>
+            <input type="color" value="#0f0520" oninput="cs('--bg-panel',this.value)">
+            <input type="color" value="#1a0a2e" oninput="cs('--bg-dark',this.value)">
+          </div>
+          <div class="tweak-row"><label>Accent / Gold</label>
+            <input type="color" value="#7c3aed" oninput="cs('--accent',this.value)">
+            <input type="color" value="#fbbf24" oninput="cs('--accent2',this.value)">
+          </div>
+          <div class="tweak-row"><label>Artifact ?</label>
+            <input type="color" value="#fbbf24" oninput="setArtColor(this.value)">
+          </div>
+          <div class="tweak-row"><label>Custom</label>
+            <input type="color" value="#059669" oninput="setCustColor(this.value)">
+          </div>
+          <div class="tweak-row"><label>Χάρτης</label>
+            <select onchange="changeMap(this.value)">
+              <option value="osm">OpenStreetMap</option>
+              <option value="dark">CartoDB Dark</option>
+              <option value="topo">Topo</option>
+            </select>
+          </div>
+          <div class="tweak-row"><label>Φίλτρο</label>
+            <select onchange="applyFilter(this.value)">
+              <option value="none">Κανένα</option>
+              <option value="grayscale">Ασπρόμαυρο</option>
+              <option value="sepia">Sepia</option>
+              <option value="dark">Σκοτεινό</option>
+            </select>
+          </div>
+          <div class="tweak-row"><label>Route πάχος</label>
+            <input type="range" min="2" max="8" value="5" oninput="routeW=+this.value">
+          </div>
+        </div>
+        <div class="sec">
+          <div class="sec-lbl">Spots <span id="spot-count">(5)</span></div>
+          <div id="spots-list"></div>
+        </div>
+        <div class="sec">
+          <div class="sec-lbl">Διαδρομή <span id="rs-count"></span></div>
+          <div id="route-steps"><div style="font-size:11px;color:var(--text-muted)">Πάτα Φτιάξε Διαδρομή.</div></div>
+          <div id="playback" style="display:none">
+            <button class="pb-btn pb-sec" onclick="stepPrev()" id="pb-prev">⏮</button>
+            <button class="pb-btn" onclick="stepNext()" id="pb-next">▶ Play step</button>
+            <button class="pb-btn pb-sec" onclick="stepReset()">⟲</button>
+            <div id="pb-status"></div>
+          </div>
+          <div id="totals-grid" style="display:none">
+            <div class="total-box"><div class="total-lbl">Απόσταση</div><div class="total-val" id="tot-dist">—</div></div>
+            <div class="total-box"><div class="total-lbl">Χρόνος</div><div class="total-val" id="tot-time">—</div></div>
+            <div class="total-box"><div class="total-lbl">Stops</div><div class="total-val" id="tot-stops">—</div></div>
+          </div>
+        </div>
+      </div>
+      <div id="status-bar">v11: 52 nodes offline + 5 mirrors</div>
+    </div>
+  </div>
+
+  <div id="ar-overlay">
+    <div id="ar-frame">
+      <span class="ar-em" id="ar-em">✨</span>
+      <div id="ar-title"></div><div id="ar-loc"></div><div id="ar-story"></div><div id="ar-reward"></div>
+      <button class="ar-btn ar-add" id="ar-toggle-btn" onclick="toggleArtRoute()">+ Στη διαδρομή</button>
+      <button class="ar-btn ar-primary" onclick="collectArt()">📷 Σύλληψη AR</button>
+      <button class="ar-btn ar-sec" onclick="closeAR()">Κλείσιμο</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ARTS=[
+  {id:'h0',lat:55.9466,lng:-3.1921,name:"Η Πέτρα του Ρίντλ",emoji:"💀",loc:"Greyfriars Kirkyard",hp:"Tom Riddell → Voldemort",story:"Στο σκοτεινό νεκροταφείο η Rowling είδε ταφόπλακα «Thomas Riddell».",reward:"Σπάνιο (+150)",pts:150},
+  {id:'h1',lat:55.9479,lng:-3.1932,name:"Το Κλειδί του Diagon",emoji:"🔑",loc:"Victoria Street",hp:"Diagon Alley",story:"Η καμπυλωτή Victoria Street.",reward:"Σπάνιο (+120)",pts:120},
+  {id:'h2',lat:55.9471,lng:-3.1898,name:"Το Φλιτζάνι",emoji:"☕",loc:"Elephant House",hp:"Γεννήθηκε ο Harry Potter",story:"Στο παράθυρο του Elephant House.",reward:"Θρυλικό (+200)",pts:200},
+  {id:'h3',lat:55.9463,lng:-3.1926,name:"Ο Λίθος του Χόγκουαρτς",emoji:"🏰",loc:"George Heriot's School",hp:"Hogwarts",story:"Τα γοτθικά πύργα.",reward:"Θρυλικό (+180)",pts:180},
+  {id:'h4',lat:55.9519,lng:-3.1889,name:"Η Κουκουβάγια",emoji:"🦉",loc:"Balmoral Suite 552",hp:"Τελευταίο κεφάλαιο",story:"Στο Suite 552 η Rowling έγραψε την τελευταία λέξη.",reward:"Μυθικό (+250)",pts:250}
+];
+const KNOWN=[
+  {name:'Edinburgh Castle',lat:55.9486,lng:-3.1999},{name:'Calton Hill',lat:55.9554,lng:-3.1840},
+  {name:"Arthur's Seat",lat:55.9444,lng:-3.1617},{name:'Holyrood Palace',lat:55.9523,lng:-3.1719},
+  {name:'Scott Monument',lat:55.9517,lng:-3.1938},{name:'National Museum',lat:55.9466,lng:-3.1898},
+  {name:'Royal Mile',lat:55.9493,lng:-3.1883},{name:'Princes St Gardens',lat:55.9508,lng:-3.2009},
+  {name:'Scottish Parliament',lat:55.9524,lng:-3.1744},{name:'Dynamic Earth',lat:55.9506,lng:-3.1738},
+  {name:'Dean Village',lat:55.9545,lng:-3.2144},
+];
+const MC={walk:'#10b981',bus:'#3b82f6',taxi:'#f59e0b'};
+const ASTAR_COLOR='#c4b5fd';
+const OFF_COLOR='#9ca3af';
+const MS={walk:0.08,bus:0.4,taxi:0.5};
+const ML={walk:'Πεζός',bus:'Λεωφ.',taxi:'Taxi'};
+const TILES={osm:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',dark:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',topo:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png'};
+
+let map,tile,hpM={},custM=[],routeL=[],hotelM=null;
+let coll=new Set(),customSp=[],curArt=null,routeOrder=[];
+let incl=new Set();
+let artColor='#fbbf24',custColor='#059669',routeW=5;
+let segs=[],pbIdx=-1;
+
+function debug(msg, cls){
+  const el=document.getElementById('debug-content');
+  const line=document.createElement('div');
+  line.className='debug-line';
+  line.innerHTML=`<span class="${cls||''}">${msg}</span>`;
+  el.appendChild(line);
+  while(el.children.length>15)el.removeChild(el.firstChild);
+}
+function toggleDebug(){
+  document.getElementById('debug-panel').classList.toggle('show',document.getElementById('show-debug').checked);
+}
+
+function qSVG(c,s,g){return '<svg class="'+(g?'q-svg glow':'q-svg')+'" width="'+s+'" height="'+s+'" viewBox="0 0 24 24" style="--art-color:'+c+'"><text x="12" y="19" text-anchor="middle" font-family="Cinzel,Georgia,serif" font-size="22" font-weight="700" fill="'+c+'" stroke="#000" stroke-width="0.5">?</text></svg>';}
+function getH(){const v=document.getElementById('hotel-sel').value.split(',');return{lat:+v[0],lng:+v[1],name:document.getElementById('hotel-sel').selectedOptions[0].text,id:'hotel'};}
+function artIcon(a){if(coll.has(a.id))return L.divIcon({className:'',html:'<div style="font-size:22px;opacity:.55;filter:grayscale(1);text-align:center;line-height:28px;width:28px;height:28px">'+a.emoji+'</div>',iconSize:[28,28],iconAnchor:[14,14]});const inc=incl.has(a.id);const ring=inc?'<div style="position:absolute;inset:-4px;border:2px solid var(--accent2);border-radius:50%"></div>':'';return L.divIcon({className:'',html:'<div style="position:relative;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer">'+qSVG(artColor,30,true)+ring+'</div>',iconSize:[32,32],iconAnchor:[16,16]});}
+function custIcon(n){return L.divIcon({className:'',html:'<div style="background:'+custColor+';color:white;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5);cursor:pointer;animation:cb 2s infinite alternate">'+n+'</div>',iconSize:[30,30],iconAnchor:[15,15]});}
+function hotelIcon(){return L.divIcon({className:'',html:'<div style="background:#185FA5;color:white;width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5)">H</div>',iconSize:[34,34],iconAnchor:[17,17]});}
+
+function init(){
+  map=L.map('map',{zoomControl:true,tap:true}).setView([55.9483,-3.1920],15);
+  tile=L.tileLayer(TILES.osm,{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);
+  ARTS.forEach(a=>{
+    const m=L.marker([a.lat,a.lng],{icon:artIcon(a),zIndexOffset:500,bubblingMouseEvents:false}).addTo(map);
+    m.bindTooltip('<b>⚡ '+a.name+'</b><br><small>'+a.loc+'</small>',{direction:'top',offset:[0,-14]});
+    m.on('click',e=>{L.DomEvent.stopPropagation(e);openAR(a.id);});
+    hpM[a.id]=m;
+  });
+  placeH();
+  map.on('click',e=>{
+    if(e.originalEvent.target.closest('.leaflet-marker-icon'))return;
+    if(customSp.length>=10){stat('Μέγιστο 10.');return;}
+    const sp=findN(e.latlng.lat,e.latlng.lng);
+    customSp.push(sp);
+    const n=customSp.length;
+    const m=L.marker([sp.lat,sp.lng],{icon:custIcon(n),zIndexOffset:300,bubblingMouseEvents:false}).addTo(map);
+    m.bindTooltip('<b>'+n+'. '+sp.name+'</b>',{direction:'top',offset:[0,-14]});
+    m.on('click',ev=>L.DomEvent.stopPropagation(ev));
+    custM.push(m);
+    clearRoute();renderP();updRC();
+    stat('#'+n+': '+sp.name);
+  });
+  document.getElementById('hotel-sel').addEventListener('change',()=>{placeH();clearRoute();});
+  renderP();updRC();
+  window.addEventListener('resize',()=>setTimeout(()=>map.invalidateSize(),100));
+}
+
+function toggleDrawer(){
+  document.getElementById('panel').classList.toggle('open');
+  document.getElementById('drawer-backdrop').classList.toggle('show');
+  setTimeout(()=>map.invalidateSize(),300);
+}
+
+function placeH(){if(hotelM)map.removeLayer(hotelM);const h=getH();hotelM=L.marker([h.lat,h.lng],{icon:hotelIcon(),zIndexOffset:1000}).addTo(map);}
+function findN(lat,lng){const used=[...ARTS.map(a=>a.name),...customSp.map(s=>s.name)];let best=null,bd=Infinity;for(const s of KNOWN){if(used.includes(s.name))continue;const d=Math.hypot(s.lat-lat,s.lng-lng);if(d<bd){bd=d;best=s;}}if(best&&bd<0.004)return{...best,id:'c'+Date.now()};return{name:'Spot '+(customSp.length+1),lat,lng,id:'c'+Date.now()};}
+function routeSp(){return[...customSp,...ARTS.filter(a=>incl.has(a.id))];}
+function updRC(){const n=routeSp().length;document.getElementById('t-route').textContent=n;const b=document.getElementById('fab-badge');if(n>0){b.textContent=n;b.style.display='block';}else b.style.display='none';}
+
+function hav(a,b){const R=6371,dL=(b.lat-a.lat)*Math.PI/180,dLn=(b.lng-a.lng)*Math.PI/180;const s=Math.sin(dL/2)**2+Math.cos(a.lat*Math.PI/180)*Math.cos(b.lat*Math.PI/180)*Math.sin(dLn/2)**2;return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));}
+function havM(a,b){return hav(a,b)*1000;} // meters
+
+function nn(p){const n=p.length,v=Array(n).fill(false),o=[0];v[0]=true;for(let i=1;i<n;i++){let bb=-1,bd=Infinity;const c=o[o.length-1];for(let j=0;j<n;j++)if(!v[j]){const d=hav(p[c],p[j]);if(d<bd){bd=d;bb=j;}}v[bb]=true;o.push(bb);}return o;}
+function to(p,o){let b=[...o],im=true;while(im){im=false;for(let i=0;i<b.length-1;i++)for(let j=i+2;j<b.length;j++){const a=hav(p[b[i]],p[b[i+1]]),bb=hav(p[b[j]],p[b[(j+1)%b.length]]);const c=hav(p[b[i]],p[b[j]]),d=hav(p[b[i+1]],p[b[(j+1)%b.length]]);if(c+d<a+bb-0.001){b=[...b.slice(0,i+1),...b.slice(i+1,j+1).reverse(),...b.slice(j+1)];im=true;}}}return b;}
+
+async function osrm(f,t){
+  try{
+    const r=await fetch('https://router.project-osrm.org/route/v1/foot/'+f.lng+','+f.lat+';'+t.lng+','+t.lat+'?overview=full&geometries=geojson');
+    if(!r.ok)return null;
+    const d=await r.json();if(d.code!=='Ok')return null;
+    return{coords:d.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]),dist:d.routes[0].distance/1000};
+  }catch{return null;}
+}
+
+// ========== EMBEDDED FALLBACK GRAPH (52 nodes, 90 edges, offline) ==========
+const HOLYROOD_GRAPH={"palace_entry":[55.9523,-3.1719,["qd_n1","st_margarets_loch"]],"parliament_entry":[55.9524,-3.1746,["qd_w1","huttons_section","huttons_n"]],"duddingston_w":[55.9436,-3.1604,["qd_e2","dunsapie_loch"]],"pollock_halls":[55.9412,-3.1697,["qd_s1","qd_s2"]],"newington_e":[55.942,-3.174,["qd_w1","south_path2"]],"meadowbank_w":[55.955,-3.164,["qd_n1","st_margarets_n"]],"pleasance_entry":[55.9474,-3.1814,["huttons_n","cowgate_entry"]],"cowgate_entry":[55.949,-3.1822,["pleasance_entry","volunteer_walk","radical_road_n"]],"qd_n1":[55.953,-3.1665,["palace_entry","meadowbank_w","qd_n2","qd_w2","st_margarets_loch"]],"qd_n2":[55.9525,-3.161,["qd_n1","qd_e1","whinny_north"]],"qd_e1":[55.9495,-3.1565,["qd_n2","qd_e2","whinny_e"]],"qd_e2":[55.946,-3.1555,["duddingston_w","qd_e1","qd_s1","dunsapie_loch"]],"qd_s1":[55.9425,-3.1585,["pollock_halls","qd_e2","qd_s2","crow_e"]],"qd_s2":[55.942,-3.166,["pollock_halls","qd_s1","qd_w1","crow_hill","crow_w"]],"qd_w1":[55.9445,-3.1725,["parliament_entry","newington_e","qd_s2","qd_w2","radical_road_s","south_path2"]],"qd_w2":[55.9485,-3.1735,["qd_w1","qd_n1"]],"st_margarets_loch":[55.9505,-3.166,["palace_entry","qd_n1","st_margarets_n","huttons_section","volunteer_walk","vw_north"]],"st_margarets_n":[55.9515,-3.1655,["meadowbank_w","st_margarets_loch","whinny_north"]],"huttons_section":[55.951,-3.169,["parliament_entry","st_margarets_loch","huttons_n","volunteer_walk"]],"huttons_n":[55.9508,-3.173,["parliament_entry","pleasance_entry","huttons_section"]],"volunteer_walk":[55.9495,-3.17,["cowgate_entry","st_margarets_loch","huttons_section","vw_north","radical_road_n"]],"radical_road_n":[55.9485,-3.17,["cowgate_entry","volunteer_walk","vw_south","radical_road_m1","salisbury_n"]],"radical_road_m1":[55.9477,-3.1695,["vw_mid","radical_road_n","radical_road_m2","salisbury_top_n"]],"radical_road_m2":[55.947,-3.169,["radical_road_m1","radical_road_s","salisbury_top_s"]],"radical_road_s":[55.946,-3.1685,["radical_road_m2","salisbury_s","qd_w1"]],"salisbury_n":[55.9472,-3.1697,["radical_road_n","salisbury_top_n"]],"salisbury_top_n":[55.947,-3.168,["salisbury_n","salisbury_top_s","radical_road_m1","piper_walk_start"]],"salisbury_top_s":[55.9462,-3.167,["salisbury_top_n","salisbury_s","radical_road_m2","piper_walk_start"]],"salisbury_s":[55.9455,-3.1685,["radical_road_s","salisbury_top_s","piper_walk_start"]],"vw_north":[55.95,-3.1655,["st_margarets_loch","volunteer_walk","vw_mid"]],"vw_mid":[55.9492,-3.165,["vw_north","vw_south","radical_road_m1"]],"vw_south":[55.9485,-3.1645,["vw_mid","vw_se","radical_road_n"]],"vw_se":[55.948,-3.162,["vw_south","vw_e","dunsapie_w"]],"vw_e":[55.9488,-3.1605,["vw_se","whinny_west"]],"piper_walk_start":[55.9466,-3.165,["salisbury_top_s","salisbury_top_n","salisbury_s","piper_walk_mid"]],"piper_walk_mid":[55.9458,-3.1635,["piper_walk_start","piper_walk_top","as_west"]],"piper_walk_top":[55.945,-3.1625,["piper_walk_mid","arthurs_seat","as_north","dunsapie_w"]],"arthurs_seat":[55.9444,-3.1617,["piper_walk_top","as_west","as_east","as_north","crow_hill"]],"as_west":[55.9447,-3.1635,["piper_walk_mid","arthurs_seat","crow_hill"]],"as_east":[55.9445,-3.16,["arthurs_seat","dunsapie_loch","as_north","dunsapie_w"]],"as_north":[55.9455,-3.1615,["arthurs_seat","piper_walk_top","as_east"]],"dunsapie_loch":[55.9462,-3.159,["duddingston_w","qd_e2","as_east","dunsapie_w","whinny_hill"]],"dunsapie_w":[55.9468,-3.1605,["vw_se","dunsapie_loch","piper_walk_top","as_east"]],"whinny_hill":[55.9485,-3.158,["dunsapie_loch","whinny_west","whinny_north","whinny_e"]],"whinny_west":[55.9492,-3.161,["vw_e","whinny_hill","whinny_north"]],"whinny_north":[55.9505,-3.1595,["qd_n2","st_margarets_n","whinny_hill","whinny_west"]],"whinny_e":[55.948,-3.1545,["qd_e1","whinny_hill"]],"crow_hill":[55.9418,-3.1615,["qd_s2","arthurs_seat","as_west","crow_w","crow_e"]],"crow_w":[55.9425,-3.1635,["crow_hill","qd_s2","south_path1"]],"crow_e":[55.9415,-3.159,["qd_s1","crow_hill"]],"south_path1":[55.9418,-3.167,["crow_w","south_path2"]],"south_path2":[55.942,-3.1705,["newington_e","south_path1","qd_w1"]]};
+
+// Runtime graph - will be replaced by Overpass data if available
+let HOLYROOD = (() => {
+  const g = {};
+  for (const id in HOLYROOD_GRAPH) {
+    const [lat, lng, neighbors] = HOLYROOD_GRAPH[id];
+    g[id] = { lat, lng, neighbors };
+  }
+  return g;
+})();
+
+let graphSource = 'embedded'; // 'embedded' or 'overpass'
+
+// Holyrood Park geofence
+function isInHolyroodPark(p){return p.lat>55.940&&p.lat<55.955&&p.lng>-3.175&&p.lng<-3.155;}
+
+// ========== OVERPASS MIRRORS ==========
+const OVERPASS_MIRRORS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://overpass.openstreetmap.fr/api/interpreter',
+  // 5th: CORS proxy fallback for content:// origins
+  'https://corsproxy.io/?https%3A%2F%2Foverpass-api.de%2Fapi%2Finterpreter'
+];
+
+const HOLYROOD_BBOX = [55.937, -3.185, 55.960, -3.150]; // S, W, N, E
+const CACHE_KEY = 'greyhound_holyrood_v3';
+const CACHE_MAX_AGE = 30 * 24 * 60 * 60 * 1000; // 30 days
+const FETCH_TIMEOUT_MS = 45000; // 45 sec — out skel queries are heavier
+
+function buildOverpassQuery(bbox) {
+  // CHANGED: use 'out body;>;out skel qt;' to get nodes WITH their IDs + ways referencing them
+  // This gives us proper node IDs that are SHARED between ways at junctions
+  return `[out:json][timeout:25];
+(
+  way["highway"~"path|footway|track|steps|pedestrian|cycleway"](${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]});
+);
+out body;
+>;
+out skel qt;`;
+}
+
+async function fetchOverpassWithFallback(query, statusFn) {
+  for (let i = 0; i < OVERPASS_MIRRORS.length; i++) {
+    const url = OVERPASS_MIRRORS[i];
+    const host = new URL(url).hostname;
+    statusFn(`Mirror ${i+1}/${OVERPASS_MIRRORS.length}: ${host}...`);
+    debug('Trying Overpass: ' + host, 'ast');
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      // For proxy URLs with existing query string, use & separator. Otherwise use ?
+      const separator = url.includes('?') ? '&' : '?';
+      const fetchUrl = url + separator + 'data=' + encodeURIComponent(query);
+      const r = await fetch(fetchUrl, {
+        signal: controller.signal
+      });
+      clearTimeout(timeout);
+      if (!r.ok) {
+        debug('  HTTP ' + r.status, 'warn');
+        continue;
+      }
+      const data = await r.json();
+      if (!data.elements) {
+        debug('  No elements in response', 'warn');
+        continue;
+      }
+      debug('  ✓ Got ' + data.elements.length + ' ways from ' + host, 'ok');
+      return { data, host };
+    } catch (e) {
+      debug('  Failed: ' + e.message, 'err');
+      continue;
+    }
+  }
+  return null;
+}
+
+function buildGraphFromOverpass(overpassData) {
+  // STEP 1: collect all nodes by ID
+  const allNodes = {};
+  const ways = [];
+  for (const el of overpassData.elements || []) {
+    if (el.type === 'node') {
+      allNodes[el.id] = { lat: el.lat, lng: el.lon };
+    } else if (el.type === 'way' && el.nodes) {
+      ways.push(el.nodes);
+    }
+  }
+  debug('  Raw: ' + Object.keys(allNodes).length + ' nodes, ' + ways.length + ' ways', 'ast');
+
+  // STEP 2: build graph using actual OSM node IDs (junctions share IDs!)
+  const graph = {};
+  for (const id in allNodes) {
+    graph[id] = { lat: allNodes[id].lat, lng: allNodes[id].lng, neighbors: new Set() };
+  }
+  for (const nodeList of ways) {
+    for (let i = 0; i < nodeList.length - 1; i++) {
+      const a = String(nodeList[i]), b = String(nodeList[i+1]);
+      if (graph[a] && graph[b]) {
+        graph[a].neighbors.add(b);
+        graph[b].neighbors.add(a);
+      }
+    }
+  }
+
+  // STEP 3: snap nodes within 3m to fix tiny disconnects in OSM data
+  const SNAP_DIST = 3; // meters
+  const ids = Object.keys(graph);
+  const remap = {};
+  // Spatial bucketing for speed (vs O(n^2))
+  const buckets = {};
+  function bucketKey(lat, lng) {
+    return Math.round(lat * 10000) + '_' + Math.round(lng * 10000);
+  }
+  for (const id of ids) {
+    const k = bucketKey(graph[id].lat, graph[id].lng);
+    if (!buckets[k]) buckets[k] = [];
+    buckets[k].push(id);
+  }
+  for (const id of ids) {
+    if (remap[id]) continue;
+    const k = bucketKey(graph[id].lat, graph[id].lng);
+    // Check neighbors buckets too
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      const baseLat = Math.round(graph[id].lat * 10000) + dx;
+      const baseLng = Math.round(graph[id].lng * 10000) + dy;
+      const nk = baseLat + '_' + baseLng;
+      const bucket = buckets[nk];
+      if (!bucket) continue;
+      for (const other of bucket) {
+        if (other === id || remap[other]) continue;
+        if (havM(graph[id], graph[other]) < SNAP_DIST) {
+          remap[other] = id;
+        }
+      }
+    }
+  }
+  let snappedCount = 0;
+  for (const oldId in remap) {
+    const newId = remap[oldId];
+    if (!graph[newId] || !graph[oldId]) continue;
+    snappedCount++;
+    for (const nb of graph[oldId].neighbors) {
+      const actualNb = remap[nb] || nb;
+      if (actualNb !== newId && graph[actualNb]) {
+        graph[newId].neighbors.add(actualNb);
+        graph[actualNb].neighbors.delete(oldId);
+        graph[actualNb].neighbors.add(newId);
+      }
+    }
+    delete graph[oldId];
+  }
+  if (snappedCount > 0) debug('  Snapped ' + snappedCount + ' duplicate nodes', 'ast');
+
+  // Convert Sets to arrays (and clean dangling references)
+  for (const id in graph) {
+    graph[id].neighbors = [...graph[id].neighbors].filter(nb => graph[nb]);
+  }
+
+  // STEP 4: find largest connected component (drop islands)
+  const visited = new Set();
+  const components = [];
+  for (const startId in graph) {
+    if (visited.has(startId)) continue;
+    const comp = [];
+    const queue = [startId];
+    visited.add(startId);
+    while (queue.length) {
+      const cur = queue.shift();
+      comp.push(cur);
+      for (const nb of graph[cur].neighbors) {
+        if (!visited.has(nb)) { visited.add(nb); queue.push(nb); }
+      }
+    }
+    components.push(comp);
+  }
+  components.sort((a, b) => b.length - a.length);
+  if (components.length > 1) {
+    debug('  Components: ' + components.length + ', largest=' + components[0].length, 'ast');
+    // Keep only largest
+    const keepSet = new Set(components[0]);
+    for (const id in graph) {
+      if (!keepSet.has(id)) delete graph[id];
+    }
+    debug('  Kept largest component, dropped ' + (visited.size - components[0].length) + ' isolated nodes', 'ast');
+  }
+
+  return graph;
+}
+
+async function loadOverpassData() {
+  // Try cache first
+  try {
+    const cached = localStorage.getItem(CACHE_KEY);
+    if (cached) {
+      const obj = JSON.parse(cached);
+      if (obj.timestamp && (Date.now() - obj.timestamp) < CACHE_MAX_AGE) {
+        debug('Loaded from cache: ' + Object.keys(obj.graph).length + ' nodes', 'ok');
+        // Restore neighbors as arrays
+        const g = {};
+        for (const k in obj.graph) {
+          g[k] = { lat: obj.graph[k][0], lng: obj.graph[k][1], neighbors: obj.graph[k][2] };
+        }
+        return { graph: g, source: 'cache' };
+      } else {
+        debug('Cache expired, fetching fresh', 'warn');
+      }
+    }
+  } catch (e) {
+    debug('Cache read failed: ' + e.message, 'err');
+  }
+
+  // Fetch fresh
+  const query = buildOverpassQuery(HOLYROOD_BBOX);
+  const result = await fetchOverpassWithFallback(query, stat);
+  if (!result) {
+    debug('All Overpass mirrors failed', 'err');
+    return null;
+  }
+
+  const graph = buildGraphFromOverpass(result.data);
+  const nodeCount = Object.keys(graph).length;
+  debug('Built graph: ' + nodeCount + ' nodes', 'ok');
+
+  if (nodeCount < 10) {
+    debug('Graph too small, ignoring', 'warn');
+    return null;
+  }
+
+  // Cache it (compact format)
+  try {
+    const compact = {};
+    for (const k in graph) compact[k] = [graph[k].lat, graph[k].lng, graph[k].neighbors];
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      timestamp: Date.now(),
+      graph: compact,
+      source: result.host
+    }));
+    debug('Cached for 30 days', 'ok');
+  } catch (e) {
+    debug('Cache write failed: ' + e.message, 'warn');
+  }
+
+  return { graph, source: result.host };
+}
+
+// Called once on page load
+async function initOverpassGraph() {
+  stat('Φόρτωση μονοπατιών...');
+  debug('=== Initializing Overpass graph ===', 'ast');
+  try {
+    const result = await loadOverpassData();
+    if (result && result.graph) {
+      HOLYROOD = result.graph;
+      graphSource = result.source;
+      const n = Object.keys(HOLYROOD).length;
+      stat(`✓ ${n} κόμβοι μονοπατιών (${result.source})`);
+      debug('=== Graph ready: ' + n + ' nodes from ' + result.source + ' ===', 'ok');
+    } else {
+      stat('⚠ Χρήση offline γράφου (24 κόμβοι)');
+      debug('Using embedded fallback graph', 'warn');
+    }
+  } catch (e) {
+    debug('Init error: ' + e.message, 'err');
+    stat('⚠ Σφάλμα φόρτωσης, offline γράφος');
+  }
+}
+
+function findNearestNode(graph,lat,lng){
+  let best=null,bd=Infinity;
+  for(const id in graph){
+    const d=havM({lat,lng},graph[id]);
+    if(d<bd){bd=d;best=id;}
+  }
+  return{id:best,distance:bd};
+}
+
+// NEW v10: Find K nearest nodes (for multi-candidate fallback)
+function findNearestNodes(graph, lat, lng, k){
+  const arr = [];
+  for(const id in graph){
+    const d = havM({lat,lng}, graph[id]);
+    arr.push({id, distance: d});
+  }
+  arr.sort((a,b) => a.distance - b.distance);
+  return arr.slice(0, k);
+}
+
+function aStar(graph,startId,goalId){
+  const goal=graph[goalId];
+  if(!goal||!graph[startId])return null;
+  const open=new Set([startId]);
+  const cameFrom={};
+  const g={[startId]:0};
+  const f={[startId]:havM(graph[startId],goal)};
+  let iter=0;
+  const MAX=50000;
+  while(open.size>0){
+    iter++;
+    if(iter>MAX){return null;}
+    let cur=null,low=Infinity;
+    for(const id of open)if(f[id]<low){low=f[id];cur=id;}
+    if(cur===goalId){
+      const path=[cur];
+      while(cameFrom[cur]){cur=cameFrom[cur];path.unshift(cur);}
+      return{path,iterations:iter,totalDist:g[goalId]};
+    }
+    open.delete(cur);
+    const cn=graph[cur];if(!cn||!cn.neighbors)continue;
+    for(const nb of cn.neighbors){
+      const nbn=graph[nb];if(!nbn)continue;
+      const tg=g[cur]+havM(cn,nbn);
+      if(tg<(g[nb]??Infinity)){
+        cameFrom[nb]=cur;g[nb]=tg;f[nb]=tg+havM(nbn,goal);
+        open.add(nb);
+      }
+    }
+  }
+  return null;
+}
+
+async function tryAstarRoute(from,to){
+  const nodeCount = Object.keys(HOLYROOD).length;
+  debug('Using graph (' + nodeCount + ' nodes, source: ' + graphSource + ')', 'ast');
+
+  // Adaptive threshold based on graph density
+  const maxDist = nodeCount > 500 ? 150 : nodeCount > 100 ? 300 : 600;
+
+  // NEW v10: Get top 3 candidates for both start and goal
+  const startCandidates = findNearestNodes(HOLYROOD, from.lat, from.lng, 3)
+    .filter(c => c.distance <= maxDist);
+  const goalCandidates = findNearestNodes(HOLYROOD, to.lat, to.lng, 3)
+    .filter(c => c.distance <= maxDist);
+
+  if(startCandidates.length === 0 || goalCandidates.length === 0){
+    debug('Spots too far from graph (max=' + maxDist + 'm)','warn');
+    return null;
+  }
+
+  debug('Start candidates: ' + startCandidates.map(c => c.distance.toFixed(0)+'m').join(', '), 'ast');
+  debug('Goal candidates: ' + goalCandidates.map(c => c.distance.toFixed(0)+'m').join(', '), 'ast');
+
+  // Try all combinations (9 max), pick the one with shortest TOTAL distance
+  // (start_to_node + path + node_to_goal)
+  let bestResult = null;
+  let bestTotal = Infinity;
+  let attempts = 0;
+
+  for(const sc of startCandidates){
+    for(const gc of goalCandidates){
+      attempts++;
+      if(sc.id === gc.id){
+        // Same node — direct line is best
+        const directDist = hav(from, to);
+        if(directDist < bestTotal){
+          bestTotal = directDist;
+          bestResult = {
+            coords: [[from.lat,from.lng],[to.lat,to.lng]],
+            dist: directDist,
+            iterations: 0,
+            nodes: 1,
+            startDist: sc.distance,
+            endDist: gc.distance
+          };
+        }
+        continue;
+      }
+      const r = aStar(HOLYROOD, sc.id, gc.id);
+      if(!r) continue;
+      // Compute total: walking from spot to nearest node, A* path, then to other spot
+      const totalM = sc.distance + r.totalDist + gc.distance;
+      if(totalM < bestTotal){
+        bestTotal = totalM;
+        bestResult = {
+          aStarResult: r,
+          startNode: sc,
+          goalNode: gc,
+          totalM
+        };
+      }
+    }
+  }
+
+  debug('Tried ' + attempts + ' candidate combinations', 'ast');
+
+  if(!bestResult){
+    debug('A* found no path in any combination','warn');
+    return null;
+  }
+
+  // Special case: same node
+  if(bestResult.coords){
+    return {
+      coords: bestResult.coords,
+      dist: bestResult.dist / 1000,
+      iterations: 0,
+      nodes: 1
+    };
+  }
+
+  const r = bestResult.aStarResult;
+  debug('Best A*: ' + r.path.length + ' nodes, ' + (r.totalDist/1000).toFixed(2) + 'km path, total=' + (bestResult.totalM/1000).toFixed(2) + 'km', 'ok');
+
+  const coords = [[from.lat, from.lng]];
+  for(const id of r.path) coords.push([HOLYROOD[id].lat, HOLYROOD[id].lng]);
+  coords.push([to.lat, to.lng]);
+
+  return {
+    coords,
+    dist: bestResult.totalM / 1000,
+    iterations: r.iterations,
+    nodes: r.path.length
+  };
+}
+
+// Old detectOffTrail removed in v8 — now we compare OSRM vs A* directly
+
+async function buildSegment(from,to,segNum){
+  const straight=hav(from,to);
+  debug('Seg '+segNum+': '+(from.name||'start')+' → '+to.name+' ('+straight.toFixed(2)+'km)','ok');
+
+  const r=await osrm(from,to);
+  debug('  OSRM: '+(r?r.dist.toFixed(2)+'km':'FAILED'),r?'ok':'err');
+
+  const useAstar=document.getElementById('use-astar').checked;
+  const nearPark=isInHolyroodPark(from)||isInHolyroodPark(to);
+
+  // Try A* IN PARALLEL if near park (offline, instant)
+  let ar=null;
+  if(useAstar&&nearPark){
+    ar=await tryAstarRoute(from,to);
+    if(ar)debug('  A*: '+ar.dist.toFixed(2)+'km via '+ar.nodes+' nodes','ast');
+  }
+
+  // Decision logic:
+  // 1. Near park: pick shorter of OSRM/A*
+  // 2. Not near park: use OSRM
+  // 3. Fallback: straight line
+
+  if(nearPark&&ar&&r){
+    // Both available, pick shorter
+    if(ar.dist<r.dist){
+      debug('  → A* WINS (shorter by '+((r.dist-ar.dist)*1000).toFixed(0)+'m)','ast');
+      return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
+    }else{
+      debug('  → OSRM wins','ok');
+      return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
+    }
+  }
+
+  if(nearPark&&ar&&!r){
+    debug('  → A* only (OSRM failed)','ast');
+    return{coords:ar.coords,dist:ar.dist,method:'astar',offTrail:false,astarInfo:ar};
+  }
+
+  if(r){
+    return{coords:r.coords,dist:r.dist,method:'osrm',offTrail:false};
+  }
+
+  // Final fallback: straight line
+  debug('  → Straight line fallback','warn');
+  return{
+    coords:[[from.lat,from.lng],[to.lat,to.lng]],
+    dist:straight,
+    method:'straight',
+    offTrail:true
+  };
+}
+
+async function buildRoute(){
+  const btn=document.getElementById('route-btn');
+  btn.disabled=true;btn.textContent='Φορτώνω...';
+  clearRoute();
+  document.getElementById('debug-content').innerHTML='';
+  const h=getH();
+  const sp=routeSp();
+  if(!sp.length){stat('Δεν υπάρχουν spots.');btn.disabled=false;btn.textContent='▶ Φτιάξε Διαδρομή';return;}
+  const om=document.getElementById('order-mode').value;
+  if(om==='manual')routeOrder=sp.map(s=>s.id);
+  else{const o=to(sp,nn(sp));routeOrder=o.map(i=>sp[i].id);}
+  const full=[h,...routeOrder.map(id=>sp.find(s=>s.id===id))];
+  segs=[];
+
+  for(let i=0;i<full.length-1;i++){
+    btn.textContent='Routing '+(i+1)+'/'+(full.length-1)+'...';
+    const seg=await buildSegment(full[i],full[i+1],i+1);
+    segs.push({
+      from:full[i],to:full[i+1],
+      dist:seg.dist,
+      minutes:Math.round(seg.dist/MS.walk),
+      mode:'walk',
+      offTrail:seg.offTrail,
+      coords:seg.coords,
+      method:seg.method,
+      astarInfo:seg.astarInfo,
+      line:null
+    });
+  }
+
+  drawSegs();
+  map.fitBounds(L.latLngBounds(full.map(p=>[p.lat,p.lng])),{padding:[30,40]});
+  renderSt();renderP();
+  document.getElementById('playback').style.display='flex';
+  pbIdx=-1;updPB();
+  btn.disabled=false;btn.textContent='▶ Φτιάξε Διαδρομή';
+  debug('=== ROUTE COMPLETE: '+segs.length+' segments ===','ok');
+}
+
+function segColor(s){
+  if(s.method==='astar')return ASTAR_COLOR;
+  if(s.offTrail)return OFF_COLOR;
+  return MC[s.mode];
+}
+
+function drawSegs(){
+  routeL.forEach(l=>map.removeLayer(l));routeL=[];
+  segs.forEach((s,i)=>{
+    const c=segColor(s);
+    const ln=L.polyline(s.coords,{color:c,weight:routeW,opacity:0.85,dashArray:s.offTrail?'8,6':null}).addTo(map);
+    s.line=ln;routeL.push(ln);
+    const mid=s.coords[Math.floor(s.coords.length/2)];
+    const lbl=L.divIcon({className:'',html:'<div style="background:#1a0a2e;color:'+c+';font-size:11px;font-weight:600;padding:2px 7px;border-radius:3px;border:1px solid '+c+';white-space:nowrap;pointer-events:none">'+(i+1)+'·'+s.dist.toFixed(1)+'km</div>',iconAnchor:[22,9]});
+    routeL.push(L.marker(mid,{icon:lbl,interactive:false}).addTo(map));
+  });
+}
+
+function chMode(i,m){segs[i].mode=m;segs[i].minutes=Math.round(segs[i].dist/MS[m]);drawSegs();renderSt();updPB();}
+
+function renderSt(){
+  const el=document.getElementById('route-steps');
+  if(!segs.length){el.innerHTML='<div style="font-size:11px;color:var(--text-muted)">Πάτα Φτιάξε Διαδρομή.</div>';document.getElementById('totals-grid').style.display='none';document.getElementById('rs-count').textContent='';return;}
+  document.getElementById('rs-count').textContent='('+segs.length+')';
+  el.innerHTML=segs.map((s,i)=>'<div class="route-step" data-i="'+i+'" onclick="goS('+i+')">'+
+    '<div class="rs-header"><div class="rs-num">'+(i+1)+'.</div><div class="rs-from-to">'+(s.from.name||'Ξεκίνημα')+' → '+s.to.name+'</div></div>'+
+    '<div class="rs-meta">'+
+      '<span class="rs-dist">'+s.dist.toFixed(2)+' km · ~'+s.minutes+'\'</span>'+
+      '<select class="rs-mode-sel" onclick="event.stopPropagation()" onchange="chMode('+i+',this.value)">'+
+        '<option value="walk"'+(s.mode==='walk'?' selected':'')+'>Πεζός</option>'+
+        '<option value="bus"'+(s.mode==='bus'?' selected':'')+'>Λεωφ.</option>'+
+        '<option value="taxi"'+(s.mode==='taxi'?' selected':'')+'>Taxi</option>'+
+      '</select>'+
+      (s.method==='astar'?'<span class="rs-astar">★ A* '+(s.astarInfo?s.astarInfo.nodes+' nodes':'')+'</span>':'')+
+      (s.offTrail?'<span class="rs-off">⚠ Off-trail</span>':'')+
+    '</div></div>').join('');
+  const td=segs.reduce((a,s)=>a+s.dist,0);
+  const tm=segs.reduce((a,s)=>a+s.minutes,0);
+  document.getElementById('totals-grid').style.display='grid';
+  document.getElementById('tot-dist').textContent=td.toFixed(1)+' km';
+  document.getElementById('tot-time').textContent=tm+' λεπτά';
+  document.getElementById('tot-stops').textContent=segs.length;
+}
+
+function clearRoute(){
+  routeL.forEach(l=>map.removeLayer(l));
+  routeL=[];routeOrder=[];segs=[];pbIdx=-1;
+  document.getElementById('route-steps').innerHTML='<div style="font-size:11px;color:var(--text-muted)">Πάτα Φτιάξε Διαδρομή.</div>';
+  document.getElementById('totals-grid').style.display='none';
+  document.getElementById('playback').style.display='none';
+  document.getElementById('rs-count').textContent='';
+}
+
+function goS(i){pbIdx=i;updPB();}
+function stepNext(){if(!segs.length)return;if(pbIdx<segs.length-1)pbIdx++;updPB();}
+function stepPrev(){if(!segs.length)return;if(pbIdx>-1)pbIdx--;updPB();}
+function stepReset(){pbIdx=-1;updPB();}
+function updPB(){
+  segs.forEach((s,i)=>{if(!s.line)return;const dim=pbIdx>=0&&i!==pbIdx;s.line.setStyle({opacity:dim?0.18:0.95,weight:i===pbIdx?routeW+2:routeW});});
+  document.querySelectorAll('.route-step').forEach(el=>el.classList.toggle('active',+el.dataset.i===pbIdx));
+  const ps=document.getElementById('pb-status'),bn=document.getElementById('pb-next'),bp=document.getElementById('pb-prev');
+  if(pbIdx===-1){ps.textContent='Πάτα Play step';bn.textContent='▶ Step 1';bn.disabled=!segs.length;bp.disabled=true;}
+  else{const s=segs[pbIdx];ps.textContent='Βήμα '+(pbIdx+1)+'/'+segs.length+': '+ML[s.mode]+(s.method==='astar'?' (A*)':'')+(s.offTrail?' (off-trail)':'');bp.disabled=false;if(pbIdx<segs.length-1){bn.textContent='▶ Step '+(pbIdx+2);bn.disabled=false;}else{bn.textContent='✓ Τέλος';bn.disabled=true;}map.flyToBounds(L.latLngBounds(s.coords),{padding:[40,40],duration:0.8});}
+}
+
+function openAR(id){const a=ARTS.find(x=>x.id===id);if(!a)return;curArt=id;document.getElementById('ar-em').textContent=a.emoji;document.getElementById('ar-title').textContent=a.name;document.getElementById('ar-loc').textContent='📍 '+a.loc+' — '+a.hp;document.getElementById('ar-story').textContent=a.story;document.getElementById('ar-reward').textContent='🎁 '+a.reward;const tb=document.getElementById('ar-toggle-btn');if(incl.has(id)){tb.textContent='✕ Αφαίρεση';tb.style.background='#7f1d1d';}else{tb.textContent='+ Στη διαδρομή';tb.style.background='#0891b2';}document.getElementById('ar-overlay').classList.add('show');map.flyTo([a.lat,a.lng],16,{duration:1});}
+function toggleArtRoute(){if(!curArt)return;if(incl.has(curArt))incl.delete(curArt);else incl.add(curArt);hpM[curArt].setIcon(artIcon(ARTS.find(a=>a.id===curArt)));closeAR();renderP();updRC();clearRoute();}
+function collectArt(){if(!curArt)return;coll.add(curArt);hpM[curArt].setIcon(artIcon(ARTS.find(a=>a.id===curArt)));closeAR();renderP();updSt();}
+function closeAR(){document.getElementById('ar-overlay').classList.remove('show');curArt=null;}
+
+function renderP(){
+  const all=[...ARTS,...customSp];
+  document.getElementById('spot-count').textContent='('+all.length+')';
+  const el=document.getElementById('spots-list');
+  if(!all.length){el.innerHTML='<div style="font-size:11px;color:#6b7280">Κλικ στον χάρτη</div>';return;}
+  let cc=0;
+  el.innerHTML=all.map(s=>{
+    const isHP=!!s.hp,d=isHP&&coll.has(s.id),inc=isHP&&incl.has(s.id);
+    const rs=routeOrder.indexOf(s.id);
+    const sb=rs>=0?'<span class="route-step-badge">'+(rs+1)+'</span>':'';
+    let tg='';
+    if(d)tg+='<span class="tag tag-done">✓</span>';
+    else if(isHP&&inc)tg+='<span class="tag tag-included">διαδρομή</span>';
+    else if(isHP)tg+='<span class="tag tag-art">artifact</span>';
+    else tg+='<span class="tag tag-custom">custom</span>';
+    let bu;
+    if(isHP)bu='<div class="q-icon">'+(d?'<span style="font-size:15px;opacity:.6">'+s.emoji+'</span>':qSVG(artColor,22,false))+'</div>';
+    else{cc++;bu='<div class="spot-bubble" style="background:'+custColor+'">'+cc+'</div>';}
+    const tb=isHP&&!d?'<button class="spot-toggle '+(inc?'active':'')+'" onclick="event.stopPropagation();qT(\''+s.id+'\')">'+(inc?'✓':'+')+'</button>':'';
+    const db=!isHP?'<button class="spot-del" onclick="event.stopPropagation();rmC(\''+s.id+'\')">×</button>':'';
+    return '<div class="spot-row">'+bu+'<div style="flex:1;min-width:0"><div style="display:flex;align-items:center;gap:3px;flex-wrap:wrap">'+sb+'<span class="spot-name">'+s.name+'</span>'+tg+'</div>'+(isHP?'<div style="font-size:10px;color:var(--text-muted)">'+s.loc+'</div>':'')+'</div>'+tb+db+'</div>';
+  }).join('');
+}
+function qT(id){if(incl.has(id))incl.delete(id);else incl.add(id);hpM[id].setIcon(artIcon(ARTS.find(a=>a.id===id)));renderP();updRC();clearRoute();}
+function rmC(id){const i=customSp.findIndex(s=>s.id===id);if(i<0)return;customSp.splice(i,1);map.removeLayer(custM[i]);custM.splice(i,1);custM.forEach((m,j)=>m.setIcon(custIcon(j+1)));clearRoute();renderP();updRC();}
+function updSt(){document.getElementById('t-col').textContent=coll.size;document.getElementById('t-pts').textContent=ARTS.filter(a=>coll.has(a.id)).reduce((s,a)=>s+a.pts,0);}
+function cs(v,va){document.getElementById('app').style.setProperty(v,va);}
+function setArtColor(v){artColor=v;ARTS.forEach(a=>{if(!coll.has(a.id))hpM[a.id].setIcon(artIcon(a));});renderP();}
+function setCustColor(v){custColor=v;custM.forEach((m,i)=>m.setIcon(custIcon(i+1)));renderP();}
+function changeMap(s){if(tile)map.removeLayer(tile);tile=L.tileLayer(TILES[s]||TILES.osm,{attribution:'© OpenStreetMap',maxZoom:19}).addTo(map);}
+const F={none:'',grayscale:{bg:'rgba(200,200,200,1)',mode:'color'},sepia:{bg:'rgba(180,140,80,.45)',mode:'multiply'},dark:{bg:'rgba(0,0,0,.45)',mode:'multiply'}};
+function applyFilter(v){const el=document.getElementById('map-overlay');el.style.cssText='position:absolute;inset:0;pointer-events:none;z-index:400';const f=F[v];if(!f||v==='none')return;el.style.background=f.bg;el.style.mixBlendMode=f.mode;}
+async function refreshPaths(){
+  try{localStorage.removeItem(CACHE_KEY);}catch(e){}
+  debug('=== Force refresh ===','ast');
+  await initOverpassGraph();
+}
+
+function stat(t){document.getElementById('status-bar').textContent=t;}
+
+window.addEventListener('load',async()=>{
+  init();
+  // Load Overpass graph in background
+  await initOverpassGraph();
+});
+</script>
+</body>
+</html>
