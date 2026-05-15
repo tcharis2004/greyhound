@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v16 — Edinburgh HP Hunt</title>
+<title>Greyhound v17 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -23,6 +23,27 @@ body{font-family:var(--font-sans)}
 #main{display:grid;grid-template-columns:1fr 280px;flex:1;min-height:0;position:relative}
 #map-wrap{position:relative;height:100%}
 #map{height:100%;width:100%}
+/* v17: Parchment map filter */
+#map.parchment .leaflet-tile-pane{
+  filter:sepia(0.85) brightness(0.92) contrast(0.9) saturate(0.7);
+}
+#parchment-overlay{
+  position:absolute;inset:0;pointer-events:none;z-index:400;
+  background:
+    radial-gradient(ellipse at center,transparent 55%,rgba(101,67,33,0.35) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  display:none;
+  border:3px solid rgba(101,67,33,0.2);
+}
+#map.parchment + #parchment-overlay{display:block;}
+/* Parchment vignette lines (like old paper creases) */
+#parchment-overlay::after{
+  content:'';position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    0deg,transparent,transparent 40px,
+    rgba(101,67,33,0.02) 40px,rgba(101,67,33,0.02) 41px
+  );
+}
 #map-overlay{position:absolute;inset:0;pointer-events:none;z-index:400}
 #legend{position:absolute;bottom:8px;left:8px;background:rgba(15,5,32,.94);border:1px solid var(--border);border-radius:6px;padding:6px 9px;z-index:500;font-size:10px;color:var(--text-main);display:flex;gap:11px;flex-wrap:wrap;max-width:320px}
 .lg-item{display:flex;align-items:center;gap:5px}
@@ -50,17 +71,21 @@ body{font-family:var(--font-sans)}
 .sec-lbl.collapsed .toggle-arrow{transform:rotate(-90deg)}
 .sec-body{transition:max-height .3s ease,opacity .2s;overflow:hidden}
 .sec-body.hidden{max-height:0!important;opacity:0;margin:0;padding:0}
-/* v16: Greyhound progress bar */
-#greyhound-progress{position:fixed;bottom:0;left:0;right:0;height:36px;background:linear-gradient(180deg,rgba(15,5,32,0.85),rgba(15,5,32,0.95));border-top:1px solid var(--border);z-index:600;display:none;pointer-events:none}
-#gp-track{position:absolute;top:50%;left:8%;right:8%;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;transform:translateY(-50%)}
-#gp-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width 0.6s cubic-bezier(0.4,0,0.2,1);width:0%}
-#gp-dog{position:absolute;top:50%;left:8%;width:36px;height:36px;transform:translate(-50%,-50%);transition:left 0.6s cubic-bezier(0.4,0,0.2,1);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))}
-#gp-pct{position:absolute;top:50%;right:1%;transform:translateY(-50%);color:var(--accent2);font-size:11px;font-weight:600;font-family:Inter}
-#gp-start,#gp-end{position:absolute;top:50%;transform:translateY(-50%);font-size:14px}
-#gp-start{left:1%}
-#gp-end{right:5.5%}
-/* When progress bar visible, lift mobile FAB up */
-.has-progress #fab{bottom:48px!important}
+/* v17: Pac-Man progress bar */
+#greyhound-progress{position:fixed;bottom:0;left:0;right:0;height:40px;background:rgba(0,0,0,0.92);border-top:2px solid #ffd700;z-index:600;display:none;pointer-events:none;overflow:hidden}
+#gp-track{position:absolute;top:50%;left:44px;right:44px;height:4px;background:transparent;transform:translateY(-50%)}
+/* Dots container */
+#gp-dots{position:absolute;top:50%;left:44px;right:44px;height:20px;transform:translateY(-50%);display:flex;align-items:center;justify-content:space-between}
+.gp-dot{width:8px;height:8px;background:#ffd700;border-radius:50%;transition:opacity 0.3s;box-shadow:0 0 4px #ffd700}
+.gp-dot.eaten{opacity:0;transform:scale(0)}
+/* Pac-Man */
+#gp-pacman{position:absolute;top:50%;left:44px;width:28px;height:28px;transform:translate(-50%,-50%);transition:left 0.5s cubic-bezier(0.4,0,0.2,1)}
+#gp-pacman svg{width:100%;height:100%}
+/* Ghost */
+#gp-ghost{position:absolute;top:50%;left:44px;width:24px;height:24px;transform:translate(-50%,-50%);transition:left 0.5s cubic-bezier(0.4,0,0.2,1) 0.1s}
+#gp-pct{position:absolute;top:50%;right:4px;transform:translateY(-50%);color:#ffd700;font-size:10px;font-weight:700;font-family:'Press Start 2P',monospace,sans-serif;text-shadow:0 0 8px #ffd700}
+#gp-start{position:absolute;top:50%;left:4px;transform:translateY(-50%);font-size:14px}
+.has-progress #fab{bottom:52px!important}
 select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-main);border:1px solid var(--border);border-radius:5px;padding:7px 9px}
 .action-btn{width:100%;font-size:12px;padding:9px;cursor:pointer;border-radius:5px;margin-bottom:5px;border:none;min-height:38px;font-weight:500}
 .btn-primary{background:var(--accent);color:white}
@@ -108,6 +133,22 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
 .total-val{font-size:14px;font-weight:600;color:var(--accent2)}
 #status-bar{font-size:10px;color:#6b7280;padding:6px 12px;text-align:center;border-top:1px solid #1e1040}
 #ar-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.9);z-index:9999;align-items:center;justify-content:center;padding:20px}
+/* v17: Mini-challenge modal */
+#challenge-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:10000;align-items:center;justify-content:center;flex-direction:column;padding:20px;text-align:center}
+#challenge-overlay.show{display:flex}
+#challenge-box{background:linear-gradient(135deg,#1a0a2e,#0f0520);border:2px solid #fbbf24;border-radius:16px;padding:28px 24px;max-width:360px;width:100%}
+#challenge-emoji{font-size:48px;margin-bottom:12px}
+#challenge-title{font-family:Cinzel,serif;color:#fbbf24;font-size:18px;margin-bottom:8px}
+#challenge-question{color:#e5d5ff;font-size:14px;margin-bottom:20px;line-height:1.5}
+#challenge-input{width:100%;padding:10px;background:#0f0520;border:1px solid #7c3aed;border-radius:8px;color:#fff;font-size:16px;text-align:center;margin-bottom:12px;letter-spacing:2px}
+#challenge-hint{color:#a78bfa;font-size:11px;margin-bottom:16px;min-height:16px}
+.challenge-btn{padding:10px 24px;border-radius:8px;border:none;cursor:pointer;font-size:14px;font-weight:700;margin:4px}
+#challenge-submit{background:#7c3aed;color:#fff}
+#challenge-submit:hover{background:#6d28d9}
+#challenge-skip{background:transparent;color:#6b7280;border:1px solid #374151;font-size:12px}
+#challenge-lives{font-size:20px;margin-bottom:16px;letter-spacing:4px}
+@keyframes wrongShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.challenge-wrong{animation:wrongShake 0.3s ease;border-color:#ef4444!important}
 #ar-overlay.show{display:flex}
 #ar-frame{border:2px solid var(--accent);border-radius:14px;padding:22px;max-width:340px;width:100%;text-align:center;background:var(--bg-panel);color:var(--text-main)}
 .ar-em{font-size:52px;display:block;margin-bottom:10px}
@@ -145,7 +186,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v16 progress + custom hotel</div>
+      <div id="app-sub">Edinburgh · v17 challenges + pacman + parchment</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -157,6 +198,8 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="main">
     <div id="map-wrap">
       <div id="map"></div>
+      <div id="parchment-overlay"></div>
+      <button id="parchment-btn" onclick="toggleParchment()" style="position:absolute;top:10px;right:10px;z-index:500;background:rgba(101,67,33,0.85);color:#f5e6c8;border:1px solid rgba(101,67,33,0.5);border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;font-family:Cinzel,serif">📜 Χάρτης</button>
       <div id="map-overlay"></div>
       <div id="debug-panel">
         <h4>🔍 Debug Log</h4>
@@ -275,37 +318,44 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
     </div>
   </div>
 
-  <!-- v16: Greyhound progress bar -->
+  <!-- v17: Pac-Man progress bar -->
   <div id="greyhound-progress">
     <span id="gp-start">🏁</span>
-    <div id="gp-track"><div id="gp-fill"></div></div>
-    <svg id="gp-dog" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg">
-      <!-- Greyhound silhouette: slim body, long legs, pointed snout -->
-      <g fill="#fbbf24" stroke="#7c3aed" stroke-width="1.5">
-        <!-- Body (elongated ellipse) -->
-        <ellipse cx="50" cy="32" rx="22" ry="6"/>
-        <!-- Neck connecting body to head -->
-        <path d="M 70 30 Q 78 22 80 18" stroke="#fbbf24" stroke-width="5" fill="none" stroke-linecap="round"/>
-        <!-- Head (small, pointed) -->
-        <ellipse cx="82" cy="16" rx="6" ry="4" transform="rotate(15 82 16)"/>
-        <!-- Pointed snout -->
-        <path d="M 86 16 L 92 14 L 88 18 Z"/>
-        <!-- Ear (small triangle laid back) -->
-        <path d="M 79 13 L 76 8 L 80 11 Z"/>
-        <!-- Eye -->
-        <circle cx="83" cy="15" r="0.8" fill="#1a0a2e" stroke="none"/>
-        <!-- Tail (curved, slim) -->
-        <path d="M 28 30 Q 18 28 12 34" stroke="#fbbf24" stroke-width="3" fill="none" stroke-linecap="round"/>
-        <!-- Front legs (running pose) -->
-        <path d="M 62 36 L 64 50" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
-        <path d="M 66 36 L 72 48" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
-        <!-- Back legs (extended) -->
-        <path d="M 36 36 L 30 50" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
-        <path d="M 40 36 L 44 48" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
-      </g>
-    </svg>
-    <span id="gp-end">🏆</span>
+    <!-- Ghost chasing Pac-Man -->
+    <div id="gp-ghost">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 20 Q2 8 12 8 Q22 8 22 20 L22 22 L19 20 L16 22 L13 20 L10 22 L7 20 L4 22 Z" fill="#ff0000" opacity="0.9"/>
+        <circle cx="9" cy="14" r="2.5" fill="white"/>
+        <circle cx="15" cy="14" r="2.5" fill="white"/>
+        <circle cx="10" cy="14.5" r="1.2" fill="#000088"/>
+        <circle cx="16" cy="14.5" r="1.2" fill="#000088"/>
+      </svg>
+    </div>
+    <!-- Dots -->
+    <div id="gp-dots"></div>
+    <!-- Pac-Man -->
+    <div id="gp-pacman">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" id="pacman-svg">
+        <path id="pacman-path" d="M12 12 L22 7 A10 10 0 1 0 22 17 Z" fill="#ffd700"/>
+      </svg>
+    </div>
     <span id="gp-pct">0%</span>
+  </div>
+
+  <!-- v17: Mini-challenge modal -->
+  <div id="challenge-overlay">
+    <div id="challenge-box">
+      <div id="challenge-emoji">⚡</div>
+      <div id="challenge-lives">❤️❤️❤️</div>
+      <div id="challenge-title">Artifact Challenge</div>
+      <div id="challenge-question"></div>
+      <input id="challenge-input" type="text" placeholder="Η απάντησή σου..." autocomplete="off" autocorrect="off" spellcheck="false"/>
+      <div id="challenge-hint"></div>
+      <div>
+        <button class="challenge-btn" id="challenge-submit" onclick="submitChallenge()">⚡ Απάντησε</button>
+        <button class="challenge-btn" id="challenge-skip" onclick="skipChallenge()">Παράλειψε (-50 πόντοι)</button>
+      </div>
+    </div>
   </div>
 
   <div id="ar-overlay">
@@ -1116,6 +1166,7 @@ async function buildRoute(){
   }
 
   drawSegs();
+  initPacmanDots(segs.length);
   map.fitBounds(L.latLngBounds(full.map(p=>[p.lat,p.lng])),{padding:[30,40]});
   renderSt();renderP();
   document.getElementById('playback').style.display='flex';
@@ -1211,24 +1262,95 @@ function updPB(){
   updateProgress();
 }
 
-// v16: Greyhound progress bar update
+// v17: Pac-Man progress bar
+let pacmanMouthOpen=true;
+let pacmanAnimInterval=null;
+
+function initPacmanDots(total){
+  const container=document.getElementById('gp-dots');
+  container.innerHTML='';
+  // Show more dots than segments — fill the track
+  const dotCount=Math.max(total*3, 15);
+  for(let i=0;i<dotCount;i++){
+    const d=document.createElement('div');
+    d.className='gp-dot';
+    d.id='dot-'+i;
+    container.appendChild(d);
+  }
+}
+
 function updateProgress(){
   const bar=document.getElementById('greyhound-progress');
-  if(!segs.length){bar.style.display='none';document.body.classList.remove('has-progress');return;}
+  if(!segs.length){
+    bar.style.display='none';
+    document.body.classList.remove('has-progress');
+    if(pacmanAnimInterval){clearInterval(pacmanAnimInterval);pacmanAnimInterval=null;}
+    return;
+  }
   bar.style.display='block';
   document.body.classList.add('has-progress');
-  // Progress: (pbIdx+1) / segs.length. -1 means hasn't started → 0%
+
   const pct=pbIdx<0?0:Math.min(100,Math.round(((pbIdx+1)/segs.length)*100));
-  document.getElementById('gp-fill').style.width=pct+'%';
   document.getElementById('gp-pct').textContent=pct+'%';
-  // Dog position: 8% start, 92% end (matches CSS left/right offsets)
-  const dogLeft=8+(pct/100)*(92-8);
-  document.getElementById('gp-dog').style.left=dogLeft+'%';
+
+  // Track boundaries (left:44px start, right:44px end)
+  const trackW=bar.offsetWidth-88;
+  const pacLeft=44+(pct/100)*trackW;
+  const ghostLeft=Math.max(44, pacLeft-50-(pct/100)*20); // ghost chases but stays behind
+
+  document.getElementById('gp-pacman').style.left=pacLeft+'px';
+  document.getElementById('gp-ghost').style.left=ghostLeft+'px';
+
+  // Eat dots: all dots to the left of pacman position are eaten
+  const dots=document.querySelectorAll('.gp-dot');
+  dots.forEach((d,i)=>{
+    const dotLeft=44+(i/(dots.length-1))*trackW;
+    if(dotLeft<=pacLeft-10){
+      d.classList.add('eaten');
+    }
+  });
+
+  // Pac-Man mouth animation
+  if(!pacmanAnimInterval && pct>0 && pct<100){
+    pacmanAnimInterval=setInterval(()=>{
+      pacmanMouthOpen=!pacmanMouthOpen;
+      const path=document.getElementById('pacman-path');
+      if(path){
+        path.setAttribute('d', pacmanMouthOpen
+          ? 'M12 12 L22 7 A10 10 0 1 0 22 17 Z'  // mouth open
+          : 'M12 12 A10 10 0 1 0 12 12.001 Z'     // mouth closed (circle)
+        );
+      }
+    },200);
+  }
+  if(pct>=100){
+    if(pacmanAnimInterval){clearInterval(pacmanAnimInterval);pacmanAnimInterval=null;}
+    // Completion: Pac-Man eats ghost animation
+    const path=document.getElementById('pacman-path');
+    if(path)path.setAttribute('d','M12 12 A10 10 0 1 0 12 12.001 Z');
+    document.getElementById('gp-ghost').style.opacity='0';
+    document.getElementById('gp-pct').textContent='🎉';
+  }
+  if(pct===0){
+    if(pacmanAnimInterval){clearInterval(pacmanAnimInterval);pacmanAnimInterval=null;}
+  }
 }
 
 function openAR(id){const a=ARTS.find(x=>x.id===id);if(!a)return;curArt=id;document.getElementById('ar-em').textContent=a.emoji;document.getElementById('ar-title').textContent=a.name;document.getElementById('ar-loc').textContent='📍 '+a.loc+' — '+a.hp;document.getElementById('ar-story').textContent=a.story;document.getElementById('ar-reward').textContent='🎁 '+a.reward;const tb=document.getElementById('ar-toggle-btn');if(incl.has(id)){tb.textContent='✕ Αφαίρεση';tb.style.background='#7f1d1d';}else{tb.textContent='+ Στη διαδρομή';tb.style.background='#0891b2';}document.getElementById('ar-overlay').classList.add('show');map.flyTo([a.lat,a.lng],16,{duration:1});}
 function toggleArtRoute(){if(!curArt)return;if(incl.has(curArt))incl.delete(curArt);else incl.add(curArt);hpM[curArt].setIcon(artIcon(ARTS.find(a=>a.id===curArt)));closeAR();renderP();updRC();clearRoute();}
-function collectArt(){if(!curArt)return;coll.add(curArt);hpM[curArt].setIcon(artIcon(ARTS.find(a=>a.id===curArt)));closeAR();renderP();updSt();}
+function collectArt(){
+  if(!curArt)return;
+  if(coll.has(curArt)){closeAR();return;}
+  const artId=curArt;
+  closeAR();
+  openChallenge(artId,(bonus)=>{
+    coll.add(artId);
+    const art=ARTS.find(a=>a.id===artId);
+    if(art)hpM[artId].setIcon(artIcon(art));
+    renderP();updSt(bonus||0);
+    setTimeout(()=>stat('🏆 '+art.emoji+' '+art.name+' — Collected!'),100);
+  });
+}
 function closeAR(){document.getElementById('ar-overlay').classList.remove('show');curArt=null;}
 
 function renderP(){
@@ -1256,7 +1378,13 @@ function renderP(){
 }
 function qT(id){if(incl.has(id))incl.delete(id);else incl.add(id);hpM[id].setIcon(artIcon(ARTS.find(a=>a.id===id)));renderP();updRC();clearRoute();}
 function rmC(id){const i=customSp.findIndex(s=>s.id===id);if(i<0)return;customSp.splice(i,1);map.removeLayer(custM[i]);custM.splice(i,1);custM.forEach((m,j)=>m.setIcon(custIcon(j+1)));clearRoute();renderP();updRC();}
-function updSt(){document.getElementById('t-col').textContent=coll.size;document.getElementById('t-pts').textContent=ARTS.filter(a=>coll.has(a.id)).reduce((s,a)=>s+a.pts,0);}
+let bonusPoints=0;
+function updSt(bonus){
+  if(bonus)bonusPoints+=bonus;
+  const basePoints=ARTS.filter(a=>coll.has(a.id)).reduce((s,a)=>s+a.pts,0);
+  document.getElementById('t-col').textContent=coll.size;
+  document.getElementById('t-pts').textContent=Math.max(0,basePoints+bonusPoints);
+}
 function cs(v,va){document.getElementById('app').style.setProperty(v,va);}
 function setArtColor(v){artColor=v;ARTS.forEach(a=>{if(!coll.has(a.id))hpM[a.id].setIcon(artIcon(a));});renderP();}
 function setCustColor(v){custColor=v;custM.forEach((m,i)=>m.setIcon(custIcon(i+1)));renderP();}
@@ -1398,6 +1526,123 @@ function setCustomHotel(lat,lng,name){
 }
 
 // v16: Collapsible sections (state persists in localStorage)
+// v17: Mini-challenges per artifact
+const CHALLENGES = {
+  h0: {
+    emoji:'💀',
+    title:'Greyfriars Kirkyard',
+    question:'Ποιο επώνυμο από ταφόπλακα εδώ χρησιμοποίησε η Rowling για τον Voldemort;',
+    answer:'riddle',
+    hint:'Tom Marvolo ___'
+  },
+  h1: {
+    emoji:'🔑',
+    title:'Victoria Street',
+    question:'Ανακάτεψε τα γράμματα: ANOGID → ποιος μαγικός δρόμος;',
+    answer:'diagon',
+    hint:'Diagon ___y'
+  },
+  h2: {
+    emoji:'☕',
+    title:'The Elephant House',
+    question:'Σε ποιο είδος χώρου έγραφε κυρίως η Rowling το Harry Potter;',
+    answer:'cafe',
+    hint:'Καφέ ή ___'
+  },
+  h3: {
+    emoji:'🏰',
+    title:'George Heriot\'s School',
+    question:'Ποιο σχολείο ενέπνευσε το Hogwarts; (επώνυμο ιδρυτή)',
+    answer:'heriots',
+    hint:'George ___\'s School'
+  },
+  h4: {
+    emoji:'🦉',
+    title:'Balmoral Hotel',
+    question:'Σε ποιον αριθμό δωματίου έγραψε η Rowling το τελευταίο HP βιβλίο;',
+    answer:'552',
+    hint:'5__'
+  }
+};
+
+let challengeArtId=null;
+let challengeLives=3;
+let challengeCallback=null;
+
+function openChallenge(artId, onSuccess){
+  const ch=CHALLENGES[artId];
+  if(!ch){onSuccess();return;} // no challenge for this artifact
+  challengeArtId=artId;
+  challengeLives=3;
+  challengeCallback=onSuccess;
+
+  document.getElementById('challenge-emoji').textContent=ch.emoji;
+  document.getElementById('challenge-title').textContent=ch.title;
+  document.getElementById('challenge-question').textContent=ch.question;
+  document.getElementById('challenge-hint').textContent='';
+  document.getElementById('challenge-input').value='';
+  document.getElementById('challenge-lives').textContent='❤️'.repeat(challengeLives);
+  document.getElementById('challenge-overlay').classList.add('show');
+  setTimeout(()=>document.getElementById('challenge-input').focus(),300);
+
+  // Enter key submits
+  document.getElementById('challenge-input').onkeydown=(e)=>{if(e.key==='Enter')submitChallenge();};
+}
+
+function submitChallenge(){
+  const ch=CHALLENGES[challengeArtId];
+  const input=document.getElementById('challenge-input');
+  const userAnswer=input.value.trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  const correct=ch.answer.toLowerCase().replace(/[^a-z0-9]/g,'');
+
+  if(userAnswer===correct){
+    // SUCCESS
+    document.getElementById('challenge-overlay').classList.remove('show');
+    document.getElementById('challenge-hint').textContent='';
+    // Bonus points for lives remaining
+    const bonus=(challengeLives-1)*25;
+    if(bonus>0)stat('⚡ Σωστό! +'+bonus+' bonus πόντοι για lives!');
+    if(challengeCallback)challengeCallback(bonus);
+    challengeCallback=null;
+  } else {
+    // WRONG
+    challengeLives--;
+    document.getElementById('challenge-lives').textContent='❤️'.repeat(challengeLives)+'🖤'.repeat(3-challengeLives);
+    input.classList.add('challenge-wrong');
+    setTimeout(()=>input.classList.remove('challenge-wrong'),400);
+    input.value='';
+
+    if(challengeLives<=0){
+      // Out of lives — show answer and continue with penalty
+      document.getElementById('challenge-hint').textContent='💔 Η απάντηση ήταν: '+ch.answer.toUpperCase()+' (-100 πόντοι)';
+      setTimeout(()=>{
+        document.getElementById('challenge-overlay').classList.remove('show');
+        if(challengeCallback)challengeCallback(-100);
+        challengeCallback=null;
+      },2000);
+    } else {
+      // Show hint after first wrong
+      if(challengeLives<3){
+        document.getElementById('challenge-hint').textContent='💡 Υπόδειξη: '+ch.hint;
+      }
+    }
+  }
+}
+
+function skipChallenge(){
+  document.getElementById('challenge-overlay').classList.remove('show');
+  if(challengeCallback)challengeCallback(-50);
+  challengeCallback=null;
+}
+
+function toggleParchment(){
+  const m=document.getElementById('map');
+  const btn=document.getElementById('parchment-btn');
+  const on=m.classList.toggle('parchment');
+  btn.style.background=on?'rgba(101,67,33,0.95)':'rgba(101,67,33,0.6)';
+  btn.textContent=on?'📜 Κανονικός':'📜 Χάρτης';
+}
+
 function toggleSec(name){
   const body=document.getElementById('sec-'+name);
   const lbl=body.previousElementSibling;
