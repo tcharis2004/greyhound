@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v15 — Edinburgh HP Hunt</title>
+<title>Greyhound v16 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -44,6 +44,23 @@ body{font-family:var(--font-sans)}
 #panel-close{display:none;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:24px;padding:10px 14px;align-self:flex-end}
 .sec{padding:10px 12px;border-bottom:1px solid var(--border)}
 .sec-lbl{font-size:9px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:7px;font-weight:600}
+.sec-lbl.collapsible{cursor:pointer;user-select:none;display:flex;align-items:center;gap:6px;padding:2px 0}
+.sec-lbl.collapsible:hover{color:var(--accent2)}
+.sec-lbl .toggle-arrow{transition:transform .2s;font-size:10px;color:var(--accent)}
+.sec-lbl.collapsed .toggle-arrow{transform:rotate(-90deg)}
+.sec-body{transition:max-height .3s ease,opacity .2s;overflow:hidden}
+.sec-body.hidden{max-height:0!important;opacity:0;margin:0;padding:0}
+/* v16: Greyhound progress bar */
+#greyhound-progress{position:fixed;bottom:0;left:0;right:0;height:36px;background:linear-gradient(180deg,rgba(15,5,32,0.85),rgba(15,5,32,0.95));border-top:1px solid var(--border);z-index:600;display:none;pointer-events:none}
+#gp-track{position:absolute;top:50%;left:8%;right:8%;height:3px;background:rgba(255,255,255,0.1);border-radius:2px;transform:translateY(-50%)}
+#gp-fill{position:absolute;top:0;left:0;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width 0.6s cubic-bezier(0.4,0,0.2,1);width:0%}
+#gp-dog{position:absolute;top:50%;left:8%;width:36px;height:36px;transform:translate(-50%,-50%);transition:left 0.6s cubic-bezier(0.4,0,0.2,1);filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5))}
+#gp-pct{position:absolute;top:50%;right:1%;transform:translateY(-50%);color:var(--accent2);font-size:11px;font-weight:600;font-family:Inter}
+#gp-start,#gp-end{position:absolute;top:50%;transform:translateY(-50%);font-size:14px}
+#gp-start{left:1%}
+#gp-end{right:5.5%}
+/* When progress bar visible, lift mobile FAB up */
+.has-progress #fab{bottom:48px!important}
 select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-main);border:1px solid var(--border);border-radius:5px;padding:7px 9px}
 .action-btn{width:100%;font-size:12px;padding:9px;cursor:pointer;border-radius:5px;margin-bottom:5px;border:none;min-height:38px;font-weight:500}
 .btn-primary{background:var(--accent);color:white}
@@ -128,7 +145,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v15 share + mode-aware</div>
+      <div id="app-sub">Edinburgh · v16 progress + custom hotel</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -167,7 +184,9 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
             <option value="55.9519,-3.1889">The Balmoral Hotel</option>
             <option value="55.9472,-3.1935">Grassmarket Hotel</option>
             <option value="55.9555,-3.2002">Haymarket Hub</option>
+            <option value="custom" id="custom-hotel-opt" style="display:none">📍 Custom</option>
           </select>
+          <button class="action-btn btn-secondary" onclick="startCustomHotelPick()" style="margin-top:6px;font-size:10px">📍 Custom σημείο εκκίνησης</button>
         </div>
         <div class="sec">
           <div class="sec-lbl">Σειρά Επίσκεψης</div>
@@ -180,8 +199,8 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           <div class="sec-lbl">Ενέργειες</div>
           <button id="route-btn" class="action-btn btn-primary" onclick="buildRoute()">▶ Φτιάξε Διαδρομή</button>
           <button class="action-btn btn-secondary" onclick="clearRoute()">✕ Καθαρισμός</button>
-          <button class="action-btn btn-secondary" onclick="shareRoute()" style="background:#1e3a5f">🔗 Μοιράσου διαδρομή</button>
           <button class="action-btn btn-secondary" onclick="refreshPaths()" style="font-size:10px">🔄 Ανανέωση μονοπατιών</button>
+          <button class="action-btn btn-secondary" onclick="shareRoute()" style="background:#1e3a5f">🔗 Μοιράσου διαδρομή</button>
           <div class="toggle-row" style="margin-top:8px">
             <input type="checkbox" id="use-astar" checked>
             <label for="use-astar">A* για μονοπάτια λόφου (offline)</label>
@@ -192,7 +211,8 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           </div>
         </div>
         <div class="sec">
-          <div class="sec-lbl">Προσαρμογή UI</div>
+          <div class="sec-lbl collapsible" onclick="toggleSec('ui')"><span class="toggle-arrow">▼</span>Προσαρμογή UI</div>
+          <div class="sec-body" id="sec-ui">
           <div class="tweak-row"><label>Panel / Bar</label>
             <input type="color" value="#0f0520" oninput="cs('--bg-panel',this.value)">
             <input type="color" value="#1a0a2e" oninput="cs('--bg-dark',this.value)">
@@ -225,13 +245,17 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
           <div class="tweak-row"><label>Route πάχος</label>
             <input type="range" min="2" max="8" value="5" oninput="routeW=+this.value">
           </div>
+          </div>
         </div>
         <div class="sec">
-          <div class="sec-lbl">Spots <span id="spot-count">(5)</span></div>
+          <div class="sec-lbl collapsible" onclick="toggleSec('spots')"><span class="toggle-arrow">▼</span>Spots <span id="spot-count">(5)</span></div>
+          <div class="sec-body" id="sec-spots">
           <div id="spots-list"></div>
+          </div>
         </div>
         <div class="sec">
-          <div class="sec-lbl">Διαδρομή <span id="rs-count"></span></div>
+          <div class="sec-lbl collapsible" onclick="toggleSec('route')"><span class="toggle-arrow">▼</span>Διαδρομή <span id="rs-count"></span></div>
+          <div class="sec-body" id="sec-route">
           <div id="route-steps"><div style="font-size:11px;color:var(--text-muted)">Πάτα Φτιάξε Διαδρομή.</div></div>
           <div id="playback" style="display:none">
             <button class="pb-btn pb-sec" onclick="stepPrev()" id="pb-prev">⏮</button>
@@ -244,10 +268,44 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
             <div class="total-box"><div class="total-lbl">Χρόνος</div><div class="total-val" id="tot-time">—</div></div>
             <div class="total-box"><div class="total-lbl">Stops</div><div class="total-val" id="tot-stops">—</div></div>
           </div>
+          </div>
         </div>
       </div>
-      <div id="status-bar">v15: share + mode-aware</div>
+      <div id="status-bar">v16: progress + custom hotel</div>
     </div>
+  </div>
+
+  <!-- v16: Greyhound progress bar -->
+  <div id="greyhound-progress">
+    <span id="gp-start">🏁</span>
+    <div id="gp-track"><div id="gp-fill"></div></div>
+    <svg id="gp-dog" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg">
+      <!-- Greyhound silhouette: slim body, long legs, pointed snout -->
+      <g fill="#fbbf24" stroke="#7c3aed" stroke-width="1.5">
+        <!-- Body (elongated ellipse) -->
+        <ellipse cx="50" cy="32" rx="22" ry="6"/>
+        <!-- Neck connecting body to head -->
+        <path d="M 70 30 Q 78 22 80 18" stroke="#fbbf24" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <!-- Head (small, pointed) -->
+        <ellipse cx="82" cy="16" rx="6" ry="4" transform="rotate(15 82 16)"/>
+        <!-- Pointed snout -->
+        <path d="M 86 16 L 92 14 L 88 18 Z"/>
+        <!-- Ear (small triangle laid back) -->
+        <path d="M 79 13 L 76 8 L 80 11 Z"/>
+        <!-- Eye -->
+        <circle cx="83" cy="15" r="0.8" fill="#1a0a2e" stroke="none"/>
+        <!-- Tail (curved, slim) -->
+        <path d="M 28 30 Q 18 28 12 34" stroke="#fbbf24" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <!-- Front legs (running pose) -->
+        <path d="M 62 36 L 64 50" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+        <path d="M 66 36 L 72 48" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+        <!-- Back legs (extended) -->
+        <path d="M 36 36 L 30 50" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+        <path d="M 40 36 L 44 48" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
+      </g>
+    </svg>
+    <span id="gp-end">🏆</span>
+    <span id="gp-pct">0%</span>
   </div>
 
   <div id="ar-overlay">
@@ -323,6 +381,14 @@ function init(){
   placeH();
   map.on('click',e=>{
     if(e.originalEvent.target.closest('.leaflet-marker-icon'))return;
+    // v16: Custom hotel pick mode
+    if(customHotelPicking){
+      customHotelPicking=false;
+      document.body.style.cursor='';
+      const name=prompt('Όνομα σημείου εκκίνησης:','Custom Start')||'Custom Start';
+      setCustomHotel(e.latlng.lat,e.latlng.lng,name);
+      return;
+    }
     if(customSp.length>=10){stat('Μέγιστο 10.');return;}
     const sp=findN(e.latlng.lat,e.latlng.lng);
     customSp.push(sp);
@@ -1128,6 +1194,8 @@ function clearRoute(){
   document.getElementById('totals-grid').style.display='none';
   document.getElementById('playback').style.display='none';
   document.getElementById('rs-count').textContent='';
+  document.getElementById('greyhound-progress').style.display='none';
+  document.body.classList.remove('has-progress');
 }
 
 function goS(i){pbIdx=i;updPB();}
@@ -1140,6 +1208,22 @@ function updPB(){
   const ps=document.getElementById('pb-status'),bn=document.getElementById('pb-next'),bp=document.getElementById('pb-prev');
   if(pbIdx===-1){ps.textContent='Πάτα Play step';bn.textContent='▶ Step 1';bn.disabled=!segs.length;bp.disabled=true;}
   else{const s=segs[pbIdx];ps.textContent='Βήμα '+(pbIdx+1)+'/'+segs.length+': '+ML[s.mode]+(s.method==='astar'?' (A*)':'')+(s.offTrail?' (off-trail)':'');bp.disabled=false;if(pbIdx<segs.length-1){bn.textContent='▶ Step '+(pbIdx+2);bn.disabled=false;}else{bn.textContent='✓ Τέλος';bn.disabled=true;}map.flyToBounds(L.latLngBounds(s.coords),{padding:[40,40],duration:0.8});}
+  updateProgress();
+}
+
+// v16: Greyhound progress bar update
+function updateProgress(){
+  const bar=document.getElementById('greyhound-progress');
+  if(!segs.length){bar.style.display='none';document.body.classList.remove('has-progress');return;}
+  bar.style.display='block';
+  document.body.classList.add('has-progress');
+  // Progress: (pbIdx+1) / segs.length. -1 means hasn't started → 0%
+  const pct=pbIdx<0?0:Math.min(100,Math.round(((pbIdx+1)/segs.length)*100));
+  document.getElementById('gp-fill').style.width=pct+'%';
+  document.getElementById('gp-pct').textContent=pct+'%';
+  // Dog position: 8% start, 92% end (matches CSS left/right offsets)
+  const dogLeft=8+(pct/100)*(92-8);
+  document.getElementById('gp-dog').style.left=dogLeft+'%';
 }
 
 function openAR(id){const a=ARTS.find(x=>x.id===id);if(!a)return;curArt=id;document.getElementById('ar-em').textContent=a.emoji;document.getElementById('ar-title').textContent=a.name;document.getElementById('ar-loc').textContent='📍 '+a.loc+' — '+a.hp;document.getElementById('ar-story').textContent=a.story;document.getElementById('ar-reward').textContent='🎁 '+a.reward;const tb=document.getElementById('ar-toggle-btn');if(incl.has(id)){tb.textContent='✕ Αφαίρεση';tb.style.background='#7f1d1d';}else{tb.textContent='+ Στη διαδρομή';tb.style.background='#0891b2';}document.getElementById('ar-overlay').classList.add('show');map.flyTo([a.lat,a.lng],16,{duration:1});}
@@ -1182,9 +1266,13 @@ function applyFilter(v){const el=document.getElementById('map-overlay');el.style
 // v15: SHARE — encode route state to URL
 function buildShareURL(){
   const h=getH();
+  const sel=document.getElementById('hotel-sel');
+  const customOpt=document.getElementById('custom-hotel-opt');
+  const isCustom=customOpt&&customOpt.value!=='custom'&&sel.value===customOpt.value;
   const state={
     v:1, // schema version
-    hotel:document.getElementById('hotel-sel').value,
+    hotel:sel.value,
+    hotelName:isCustom?customOpt.textContent:null, // for custom only
     order:document.getElementById('order-mode').value,
     arts:[...incl], // included artifact ids
     custom:customSp.map(s=>({n:s.name,a:+s.lat.toFixed(5),o:+s.lng.toFixed(5)})),
@@ -1228,7 +1316,11 @@ function loadFromURL(){
     // Apply hotel
     if(state.hotel){
       const sel=document.getElementById('hotel-sel');
-      if([...sel.options].some(o=>o.value===state.hotel)){
+      // Check if it's a custom hotel value (lat,lng format not in standard options)
+      if(state.hotelName&&state.hotel.includes(',')){
+        const [lat,lng]=state.hotel.split(',').map(Number);
+        if(!isNaN(lat)&&!isNaN(lng))setCustomHotel(lat,lng,state.hotelName.replace(/^📍 /,''));
+      } else if([...sel.options].some(o=>o.value===state.hotel)){
         sel.value=state.hotel;
         placeH();
       }
@@ -1284,6 +1376,51 @@ function loadFromURL(){
   }
 }
 
+// v16: Custom hotel pick
+let customHotelPicking=false;
+function startCustomHotelPick(){
+  customHotelPicking=true;
+  stat('🎯 Κάνε click στον χάρτη για να ορίσεις σημείο εκκίνησης');
+  document.body.style.cursor='crosshair';
+}
+function setCustomHotel(lat,lng,name){
+  const opt=document.getElementById('custom-hotel-opt');
+  opt.value=lat+','+lng;
+  opt.textContent='📍 '+(name||'Custom: '+lat.toFixed(4)+', '+lng.toFixed(4));
+  opt.style.display='';
+  document.getElementById('hotel-sel').value=lat+','+lng;
+  // For the value to match, set option value correctly
+  opt.setAttribute('data-name',name||'Custom Start');
+  placeH();
+  clearRoute();
+  stat('✓ Σημείο εκκίνησης ορίστηκε');
+  setTimeout(()=>stat('v16: progress + custom hotel'),3000);
+}
+
+// v16: Collapsible sections (state persists in localStorage)
+function toggleSec(name){
+  const body=document.getElementById('sec-'+name);
+  const lbl=body.previousElementSibling;
+  const hidden=body.classList.toggle('hidden');
+  lbl.classList.toggle('collapsed',hidden);
+  try{
+    const st=JSON.parse(localStorage.getItem('greyhound_sec_state')||'{}');
+    st[name]=hidden;
+    localStorage.setItem('greyhound_sec_state',JSON.stringify(st));
+  }catch{}
+}
+function restoreSecState(){
+  try{
+    const st=JSON.parse(localStorage.getItem('greyhound_sec_state')||'{}');
+    for(const name of ['ui','spots','route']){
+      if(st[name]){
+        const body=document.getElementById('sec-'+name);
+        if(body){body.classList.add('hidden');body.previousElementSibling.classList.add('collapsed');}
+      }
+    }
+  }catch{}
+}
+
 async function refreshPaths(){
   try{localStorage.removeItem(CACHE_KEY);}catch(e){}
   debug('=== Force refresh ===','ast');
@@ -1294,6 +1431,7 @@ function stat(t){document.getElementById('status-bar').textContent=t;}
 
 window.addEventListener('load',async()=>{
   init();
+  restoreSecState();
   // Load Overpass graph in background
   await initOverpassGraph();
   // v15: Try to restore route from URL
