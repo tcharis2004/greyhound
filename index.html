@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v22 — Edinburgh HP Hunt</title>
+<title>Greyhound v23 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -79,12 +79,6 @@ body{font-family:var(--font-sans)}
 /* v20: Pac-Man slow linear motion (like the real game) */
 #gp-pacman{position:absolute;top:50%;left:50px;width:30px;height:30px;transform:translate(-50%,-50%);transition:left 1.8s linear;z-index:2}
 #gp-pacman svg{width:100%;height:100%}
-/* v21: Ghost patrols slower (8s) and stays always 100px behind Pac-Man */
-#gp-ghost{position:absolute;top:50%;left:50px;width:24px;height:24px;transform:translate(-50%,-50%);transition:opacity 0.3s;z-index:1;animation:ghostPatrol 8s ease-in-out infinite}
-@keyframes ghostPatrol{
-  0%,100%{left:var(--ghost-far)}
-  50%{left:var(--ghost-near)}
-}
 #gp-pct{position:absolute;top:50%;right:6px;transform:translateY(-50%);color:#ffd700;font-size:10px;font-weight:900;font-family:monospace;text-shadow:0 0 8px #ffd700;white-space:nowrap}
 #gp-start{position:absolute;top:50%;left:6px;transform:translateY(-50%);font-size:16px}
 .has-progress #fab{bottom:56px!important}
@@ -189,7 +183,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v22 dots eat fix + ghost start</div>
+      <div id="app-sub">Edinburgh · v23 no ghost</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -324,16 +318,6 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <!-- v17: Pac-Man progress bar -->
   <div id="greyhound-progress">
     <span id="gp-start">🏁</span>
-    <!-- Ghost chasing Pac-Man -->
-    <div id="gp-ghost">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M2 20 Q2 8 12 8 Q22 8 22 20 L22 22 L19 20 L16 22 L13 20 L10 22 L7 20 L4 22 Z" fill="#ff0000" opacity="0.9"/>
-        <circle cx="9" cy="14" r="2.5" fill="white"/>
-        <circle cx="15" cy="14" r="2.5" fill="white"/>
-        <circle cx="10" cy="14.5" r="1.2" fill="#000088"/>
-        <circle cx="16" cy="14.5" r="1.2" fill="#000088"/>
-      </svg>
-    </div>
     <!-- Dots -->
     <div id="gp-dots"></div>
     <!-- Pac-Man -->
@@ -1301,31 +1285,6 @@ function updateProgress(){
   const pacLeft=trackStart+(pct/100)*trackW;
   document.getElementById('gp-pacman').style.left=pacLeft+'px';
 
-  // v22: Ghost ALWAYS stays behind Pac-Man. Hide entirely until safe space exists.
-  const ghostEl=document.getElementById('gp-ghost');
-  const SAFE_GAP=100;
-  const MIN_ROOM_NEEDED=SAFE_GAP+30; // ghost needs at least this much room from start
-  if(pacLeft-trackStart < MIN_ROOM_NEEDED){
-    // Pac-Man hasn't moved enough — hide ghost, no risk of crossing
-    if(ghostEl.style.opacity!=='0'){
-      ghostEl.style.opacity='0';
-    }
-  } else {
-    // Safe to show ghost — but if it was hidden, restart animation cleanly from left
-    const wasHidden=ghostEl.style.opacity==='0'||ghostEl.style.opacity==='';
-    const ghostNear=pacLeft-SAFE_GAP;
-    const ghostFar=trackStart+15;
-    ghostEl.style.setProperty('--ghost-near', ghostNear+'px');
-    ghostEl.style.setProperty('--ghost-far', ghostFar+'px');
-    if(wasHidden){
-      // Force animation restart from the "far" (left) side so ghost never appears in front
-      ghostEl.style.animation='none';
-      ghostEl.offsetWidth; // force reflow
-      ghostEl.style.animation='ghostPatrol 8s ease-in-out infinite';
-    }
-    ghostEl.style.opacity='1';
-  }
-
   // v22: Eat dots based on actual pixel position — every dot left of Pac-Man is gone
   const dots=document.querySelectorAll('.gp-dot');
   const dotsCount=dots.length;
@@ -1351,7 +1310,6 @@ function updateProgress(){
     if(pacmanAnimInterval){clearInterval(pacmanAnimInterval);pacmanAnimInterval=null;}
     const path=document.getElementById('pacman-path');
     if(path)path.setAttribute('d','M12 12 A10 10 0 1 0 12 12.001 Z');
-    document.getElementById('gp-ghost').style.opacity='0';
     document.getElementById('gp-pct').textContent='🎉 100%';
   }
   if(pct===0&&pacmanAnimInterval){
