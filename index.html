@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v23 — Edinburgh HP Hunt</title>
+<title>Greyhound v21.1 — Edinburgh HP Hunt + Pac-Man</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -79,6 +79,12 @@ body{font-family:var(--font-sans)}
 /* v20: Pac-Man slow linear motion (like the real game) */
 #gp-pacman{position:absolute;top:50%;left:50px;width:30px;height:30px;transform:translate(-50%,-50%);transition:left 1.8s linear;z-index:2}
 #gp-pacman svg{width:100%;height:100%}
+/* v20: Ghost patrols between start and (Pac-Man minus gap) */
+#gp-ghost{position:absolute;top:50%;left:50px;width:24px;height:24px;transform:translate(-50%,-50%);transition:opacity 0.3s;z-index:1;animation:ghostPatrol 4s ease-in-out infinite}
+@keyframes ghostPatrol{
+  0%,100%{left:var(--ghost-far)}
+  50%{left:var(--ghost-near)}
+}
 #gp-pct{position:absolute;top:50%;right:6px;transform:translateY(-50%);color:#ffd700;font-size:10px;font-weight:900;font-family:monospace;text-shadow:0 0 8px #ffd700;white-space:nowrap}
 #gp-start{position:absolute;top:50%;left:6px;transform:translateY(-50%);font-size:16px}
 .has-progress #fab{bottom:56px!important}
@@ -175,6 +181,53 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   #legend{font-size:9px;gap:7px;padding:4px 7px;max-width:240px;bottom:90px}
   #debug-panel{font-size:9px;max-width:230px}
 }
+
+/* ============ v21: PAC-MAN MODE ============ */
+#pm-toggle{position:absolute;top:8px;right:8px;z-index:550;background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a0a2e;border:2px solid #1a0a2e;border-radius:22px;padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.5);font-family:'Cinzel',serif;letter-spacing:.5px}
+#pm-toggle:hover{transform:scale(1.05)}
+#pm-toggle.active{background:linear-gradient(135deg,#dc2626,#7c2d12);color:#fff}
+#pm-hud{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:560;background:rgba(0,0,0,.85);border:2px solid #fbbf24;border-radius:10px;padding:8px 16px;color:#fff;font-family:'Press Start 2P',monospace;font-size:11px;letter-spacing:1px;display:none;align-items:center;gap:18px;text-shadow:0 0 6px #fbbf24}
+#pm-hud.show{display:flex}
+.pm-hud-item{display:flex;flex-direction:column;align-items:center;gap:2px}
+.pm-hud-lbl{font-size:8px;color:#fbbf24;opacity:.8}
+.pm-hud-val{font-size:13px;color:#fff;font-weight:700}
+#pm-hud-cherries{color:#fbbf24}
+#pm-hud-lives{color:#ff4444;letter-spacing:0}
+#pm-status-msg{position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:565;background:rgba(0,0,0,.9);color:#fbbf24;padding:6px 14px;border-radius:6px;font-size:11px;font-family:monospace;border:1px solid #fbbf24;display:none;white-space:nowrap;max-width:90%;text-align:center}
+#pm-status-msg.show{display:block}
+#pm-joystick{display:none;position:absolute;bottom:24px;right:24px;width:140px;height:140px;z-index:560;touch-action:none;user-select:none;-webkit-user-select:none}
+#pm-joystick.show{display:block}
+#pm-joystick .pm-base{position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle,rgba(124,58,237,.25),rgba(15,5,32,.7));border:3px solid rgba(251,191,36,.7);box-shadow:0 0 24px rgba(124,58,237,.5),inset 0 0 18px rgba(0,0,0,.6)}
+#pm-joystick .pm-knob{position:absolute;left:50%;top:50%;width:54px;height:54px;margin-left:-27px;margin-top:-27px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fde68a,#f59e0b);border:2px solid #1a0a2e;box-shadow:0 3px 10px rgba(0,0,0,.6);transition:transform .04s linear;pointer-events:none}
+#pm-joystick .pm-arrow{position:absolute;color:rgba(251,191,36,.6);font-size:14px;font-weight:700;pointer-events:none}
+#pm-joystick .pm-arrow.n{top:6px;left:50%;transform:translateX(-50%)}
+#pm-joystick .pm-arrow.s{bottom:6px;left:50%;transform:translateX(-50%)}
+#pm-joystick .pm-arrow.e{right:6px;top:50%;transform:translateY(-50%)}
+#pm-joystick .pm-arrow.w{left:6px;top:50%;transform:translateY(-50%)}
+#pm-gameover{display:none;position:absolute;inset:0;z-index:9000;background:rgba(0,0,0,.9);align-items:center;justify-content:center;flex-direction:column;color:#fff;font-family:'Cinzel',serif}
+#pm-gameover.show{display:flex}
+#pm-gameover h2{font-size:48px;color:#fbbf24;text-shadow:0 0 16px #f59e0b,0 0 32px #dc2626;margin-bottom:20px;letter-spacing:3px;animation:pmGOpulse 1.2s ease-in-out infinite}
+@keyframes pmGOpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+#pm-gameover .pm-final-score{font-size:22px;color:#fff;margin-bottom:10px}
+#pm-gameover .pm-final-cherries{font-size:14px;color:#fbbf24;margin-bottom:24px}
+#pm-gameover button{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#1a0a2e;border:none;padding:12px 26px;font-size:14px;font-weight:700;font-family:'Cinzel',serif;border-radius:8px;cursor:pointer;letter-spacing:1.5px;box-shadow:0 4px 12px rgba(0,0,0,.5);margin:0 6px}
+#pm-gameover button.pm-quit{background:linear-gradient(135deg,#6b21a8,#4c1d95);color:#fff}
+#pm-win h2{color:#10b981;text-shadow:0 0 16px #10b981,0 0 32px #059669}
+.pm-pacman-marker{filter:drop-shadow(0 0 8px #fbbf24)}
+.pm-ghost-marker{filter:drop-shadow(0 0 6px rgba(255,255,255,.5))}
+.pm-cherry-marker{filter:drop-shadow(0 0 4px #fbbf24);animation:pmCherrySpin 2.4s linear infinite}
+@keyframes pmCherrySpin{0%{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.15)}100%{transform:rotate(360deg) scale(1)}}
+@keyframes pmFrightened{0%,100%{filter:drop-shadow(0 0 8px #3b82f6) hue-rotate(0deg)}50%{filter:drop-shadow(0 0 10px #93c5fd) hue-rotate(60deg)}}
+.pm-ghost-frightened{animation:pmFrightened .4s linear infinite}
+@media(max-width:768px){
+  #pm-toggle{padding:6px 11px;font-size:11px;top:6px;right:6px}
+  #pm-hud{font-size:10px;padding:6px 12px;gap:12px;top:6px}
+  .pm-hud-val{font-size:12px}
+  #pm-joystick{width:120px;height:120px;bottom:18px;right:18px}
+  #pm-joystick .pm-knob{width:46px;height:46px;margin-left:-23px;margin-top:-23px}
+  #pm-gameover h2{font-size:36px}
+}
+
 </style>
 </head>
 <body>
@@ -183,7 +236,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v23 no ghost</div>
+      <div id="app-sub">Edinburgh · v21.1 + Pac-Man Streets-only 👻</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -210,6 +263,31 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
         <div class="lg-item"><div class="lg-line" style="border-top:2px dashed #9ca3af;height:0"></div>Off-trail</div>
       </div>
       <button id="fab" onclick="toggleDrawer()">☰<span class="badge" id="fab-badge" style="display:none">0</span></button>
+      <!-- v21: Pac-Man Mode UI -->
+      <button id="pm-toggle" onclick="PM.toggle()">🎮 Pac-Man</button>
+      <div id="pm-hud">
+        <div class="pm-hud-item"><div class="pm-hud-lbl">SCORE</div><div class="pm-hud-val" id="pm-hud-score">0</div></div>
+        <div class="pm-hud-item"><div class="pm-hud-lbl">CHERRY</div><div class="pm-hud-val" id="pm-hud-cherries">0/5</div></div>
+        <div class="pm-hud-item"><div class="pm-hud-lbl">LIVES</div><div class="pm-hud-val" id="pm-hud-lives">❤❤❤</div></div>
+      </div>
+      <div id="pm-status-msg"></div>
+      <div id="pm-joystick">
+        <div class="pm-base"></div>
+        <div class="pm-arrow n">▲</div>
+        <div class="pm-arrow s">▼</div>
+        <div class="pm-arrow e">▶</div>
+        <div class="pm-arrow w">◀</div>
+        <div class="pm-knob" id="pm-knob"></div>
+      </div>
+      <div id="pm-gameover">
+        <h2 id="pm-go-title">GAME OVER</h2>
+        <div class="pm-final-score">Score: <span id="pm-final-score">0</span></div>
+        <div class="pm-final-cherries">🍒 <span id="pm-final-cherries">0</span>/5 collected</div>
+        <div>
+          <button onclick="PM.restart()">▶ ΞΑΝΑΠΑΙΞΕ</button>
+          <button class="pm-quit" onclick="PM.quit()">ΕΞΟΔΟΣ</button>
+        </div>
+      </div>
     </div>
 
     <div id="drawer-backdrop" onclick="toggleDrawer()"></div>
@@ -318,6 +396,16 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <!-- v17: Pac-Man progress bar -->
   <div id="greyhound-progress">
     <span id="gp-start">🏁</span>
+    <!-- Ghost chasing Pac-Man -->
+    <div id="gp-ghost">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M2 20 Q2 8 12 8 Q22 8 22 20 L22 22 L19 20 L16 22 L13 20 L10 22 L7 20 L4 22 Z" fill="#ff0000" opacity="0.9"/>
+        <circle cx="9" cy="14" r="2.5" fill="white"/>
+        <circle cx="15" cy="14" r="2.5" fill="white"/>
+        <circle cx="10" cy="14.5" r="1.2" fill="#000088"/>
+        <circle cx="16" cy="14.5" r="1.2" fill="#000088"/>
+      </svg>
+    </div>
     <!-- Dots -->
     <div id="gp-dots"></div>
     <!-- Pac-Man -->
@@ -417,6 +505,7 @@ function init(){
   });
   placeH();
   map.on('click',e=>{
+    if(typeof PM !== 'undefined' && PM.active) return; // v21: ignore clicks during Pac-Man mode
     if(e.originalEvent.target.closest('.leaflet-marker-icon'))return;
     // v16: Custom hotel pick mode
     if(customHotelPicking){
@@ -1285,14 +1374,18 @@ function updateProgress(){
   const pacLeft=trackStart+(pct/100)*trackW;
   document.getElementById('gp-pacman').style.left=pacLeft+'px';
 
-  // v22: Eat dots based on actual pixel position — every dot left of Pac-Man is gone
-  const dots=document.querySelectorAll('.gp-dot');
-  const dotsCount=dots.length;
-  dots.forEach((d,i)=>{
-    // Each dot sits at: trackStart + (i / (count-1)) * trackW
-    const dotPx=trackStart+(i/(dotsCount-1))*trackW;
-    // Pac-Man "mouth" is at pacLeft. Anything left of pacman gets eaten.
-    if(dotPx<=pacLeft)d.classList.add('eaten');
+  // v20: Ghost patrols between start (trackStart+15) and (pacLeft - 60)
+  // CSS animation handles the actual back-and-forth motion
+  const ghostEl=document.getElementById('gp-ghost');
+  const ghostNear=Math.max(trackStart+15, pacLeft-60); // close to Pac-Man
+  const ghostFar=trackStart+15; // near start flag
+  ghostEl.style.setProperty('--ghost-near', ghostNear+'px');
+  ghostEl.style.setProperty('--ghost-far', ghostFar+'px');
+
+  // Eat dots proportionally to progress
+  document.querySelectorAll('.gp-dot').forEach((d,i)=>{
+    const dotPct=(i/(PACMAN_DOT_COUNT-1))*100;
+    if(dotPct<=pct-2)d.classList.add('eaten');
     else d.classList.remove('eaten');
   });
 
@@ -1310,13 +1403,14 @@ function updateProgress(){
     if(pacmanAnimInterval){clearInterval(pacmanAnimInterval);pacmanAnimInterval=null;}
     const path=document.getElementById('pacman-path');
     if(path)path.setAttribute('d','M12 12 A10 10 0 1 0 12 12.001 Z');
+    document.getElementById('gp-ghost').style.opacity='0';
     document.getElementById('gp-pct').textContent='🎉 100%';
   }
   if(pct===0&&pacmanAnimInterval){
     clearInterval(pacmanAnimInterval);pacmanAnimInterval=null;
     const path=document.getElementById('pacman-path');
     if(path)path.setAttribute('d','M12 12 L22 7 A10 10 0 1 0 22 17 Z');
-    // v21: Ghost stays hidden when Pac-Man at start (no room for safe gap)
+    document.getElementById('gp-ghost').style.opacity='1';
   }
 }
 
@@ -1662,6 +1756,1024 @@ async function refreshPaths(){
 }
 
 function stat(t){document.getElementById('status-bar').textContent=t;}
+
+// ============================================================
+// ====== v21: PAC-MAN MODE (namespace PM, no globals leak) ======
+// ============================================================
+const PM = {
+  // === Config ===
+  CFG: {
+    BBOX: [55.943, -3.210, 55.960, -3.170], // S, W, N, E (Edinburgh city center, covers all 5 artifacts)
+    CACHE_KEY: 'greyhound_pm_streets_v2', // bumped: query filters changed in v21.1
+    CACHE_AGE: 30 * 24 * 60 * 60 * 1000,
+    PAC_SPEED_MPS: 55,     // m/sec — game feel, not realistic walking
+    GHOST_SPEED_MPS: 38,   // ghosts slower than Pac so he can outrun
+    GHOST_FRIGHT_SPEED_MPS: 22,
+    GHOST_AI_INTERVAL: 700, // ms between A* recomputes
+    CATCH_RADIUS_M: 20,     // collision distance Pac↔Ghost
+    CHERRY_RADIUS_M: 18,    // pickup distance Pac↔Cherry
+    POWER_DURATION_MS: 8000,
+    LIVES_START: 3,
+    SCORE_CHERRY: 200,
+    SCORE_GHOST_EAT: 400,
+    SCORE_PER_CHERRY_BONUS: 50, // chain bonus on power eating
+    GAME_FRAME_MS: 33,      // ~30 fps movement
+    TURN_TOLERANCE_DEG: 100, // wide tolerance for joystick→street matching
+  },
+
+  // === State ===
+  active: false,
+  streetGraph: null,         // {id: {lat,lng,neighbors:[...]}}
+  nodeKeys: [],              // cached Object.keys for fast random pick
+  pac: null,                 // {fromId, toId, progress, speed, lat, lng, pendingDir, facing}
+  ghosts: [],                // [{id, personality, fromId, toId, progress, speed, lat, lng, marker, plannedPath, pathIdx, frightenedUntil, eatenUntil, homeNode}]
+  cherries: [],              // [{art, nodeId, taken, marker}]
+  score: 0,
+  cherriesTaken: 0,
+  lives: 0,
+  frightenedActive: false,
+  frightenedUntil: 0,
+  chainEatCount: 0,          // ghosts eaten during current frightened period
+  loopId: null,
+  lastFrame: 0,
+  pacMarker: null,
+  pendingDir: null,          // 8-dir bearing degrees (or null)
+  joystick: { active: false, cx: 0, cy: 0, dx: 0, dy: 0, lastPid: null },
+  savedView: null,           // restore center/zoom on exit
+  startTime: 0,
+
+  // ===== A. Toggle / Lifecycle =====
+  async toggle(){
+    if(this.active){ this.quit(); return; }
+    await this.start();
+  },
+
+  async start(){
+    debug('=== PM: starting Pac-Man Mode ===','ast');
+    this.setStatus('🎮 Φόρτωση δρόμων Εδιμβούργου...');
+    document.getElementById('pm-toggle').classList.add('active');
+    document.getElementById('pm-toggle').textContent = '✕ Έξοδος';
+    // Save current map view to restore on exit
+    this.savedView = { center: map.getCenter(), zoom: map.getZoom() };
+
+    // Step 1: Load or fetch street graph
+    let g = this.loadCache();
+    if(!g){
+      g = await this.fetchStreetGraph();
+      if(g) this.saveCache(g);
+    }
+    if(!g || Object.keys(g).length < 50){
+      this.setStatus('⚠ Αποτυχία φόρτωσης δρόμων. Δοκίμασε ξανά.');
+      setTimeout(()=>this.quit(), 2200);
+      return;
+    }
+    this.streetGraph = g;
+    this.nodeKeys = Object.keys(g);
+    debug('PM: graph ready — '+this.nodeKeys.length+' nodes','ok');
+
+    // Step 2: Hide hunt UI elements that would clutter
+    this.toggleHuntUI(false);
+
+    // Step 3: Init game entities
+    this.initGame();
+
+    // Step 4: Show game UI
+    document.getElementById('pm-hud').classList.add('show');
+    document.getElementById('pm-joystick').classList.add('show');
+    this.setupJoystick();
+    this.setupKeyboard();
+
+    // Step 5: Center on Pac-Man
+    map.setView([this.pac.lat, this.pac.lng], 17, {animate: true});
+
+    this.active = true;
+    this.lastFrame = performance.now();
+    this.startTime = performance.now();
+    this.setStatus('▶ Παίξε! Χρησιμοποίησε joystick ή WASD/βελάκια. Μάζεψε όλα τα 🍒!');
+    setTimeout(()=>this.setStatus(''), 4500);
+    this.loop();
+  },
+
+  quit(){
+    if(this.loopId){ cancelAnimationFrame(this.loopId); this.loopId = null; }
+    this.active = false;
+    document.getElementById('pm-toggle').classList.remove('active');
+    document.getElementById('pm-toggle').textContent = '🎮 Pac-Man';
+    document.getElementById('pm-hud').classList.remove('show');
+    document.getElementById('pm-joystick').classList.remove('show');
+    document.getElementById('pm-gameover').classList.remove('show');
+    this.setStatus('');
+    // Remove all PM markers
+    if(this.pacMarker){ map.removeLayer(this.pacMarker); this.pacMarker = null; }
+    for(const gh of this.ghosts){ if(gh.marker) map.removeLayer(gh.marker); }
+    this.ghosts = [];
+    for(const c of this.cherries){ if(c.marker) map.removeLayer(c.marker); }
+    this.cherries = [];
+    this.teardownJoystick();
+    this.teardownKeyboard();
+    // Show hunt UI again
+    this.toggleHuntUI(true);
+    // Restore view
+    if(this.savedView){
+      map.setView(this.savedView.center, this.savedView.zoom, {animate: true});
+      this.savedView = null;
+    }
+  },
+
+  restart(){
+    document.getElementById('pm-gameover').classList.remove('show');
+    // Remove markers
+    if(this.pacMarker){ map.removeLayer(this.pacMarker); this.pacMarker = null; }
+    for(const gh of this.ghosts){ if(gh.marker) map.removeLayer(gh.marker); }
+    this.ghosts = [];
+    for(const c of this.cherries){ if(c.marker) map.removeLayer(c.marker); }
+    this.cherries = [];
+    this.initGame();
+    map.setView([this.pac.lat, this.pac.lng], 17, {animate: true});
+    this.lastFrame = performance.now();
+    this.startTime = performance.now();
+    this.setStatus('🔄 Restart! Χρησιμοποίησε joystick ή WASD.');
+    setTimeout(()=>this.setStatus(''), 2500);
+    this.loop();
+  },
+
+  toggleHuntUI(visible){
+    // Hide/show hunt-mode UI to declutter during game
+    const items = ['legend', 'greyhound-progress', 'fab'];
+    for(const id of items){
+      const el = document.getElementById(id);
+      if(el) el.style.visibility = visible ? '' : 'hidden';
+    }
+    // Disable hunt-map-click handler conflict by setting a flag
+    // (We don't unregister — just guard with PM.active in the existing handler)
+  },
+
+  setStatus(msg){
+    const el = document.getElementById('pm-status-msg');
+    if(!msg){ el.classList.remove('show'); return; }
+    el.textContent = msg;
+    el.classList.add('show');
+  },
+
+  // ===== B. Cache / fetch street graph =====
+  loadCache(){
+    try{
+      const raw = localStorage.getItem(this.CFG.CACHE_KEY);
+      if(!raw) return null;
+      const o = JSON.parse(raw);
+      if(!o.ts || (Date.now() - o.ts) > this.CFG.CACHE_AGE) return null;
+      // Rehydrate neighbors arrays
+      const g = {};
+      for(const id in o.graph){
+        g[id] = { lat: o.graph[id][0], lng: o.graph[id][1], neighbors: o.graph[id][2] };
+      }
+      debug('PM: loaded cached street graph ('+Object.keys(g).length+' nodes)','ok');
+      return g;
+    }catch(e){ return null; }
+  },
+
+  saveCache(g){
+    try{
+      const compact = {};
+      for(const id in g){
+        compact[id] = [g[id].lat, g[id].lng, g[id].neighbors];
+      }
+      localStorage.setItem(this.CFG.CACHE_KEY, JSON.stringify({ ts: Date.now(), graph: compact }));
+      debug('PM: cached street graph','ast');
+    }catch(e){ debug('PM: cache save failed: '+e.message,'warn'); }
+  },
+
+  async fetchStreetGraph(){
+    const bbox = this.CFG.BBOX;
+    // v21.1: Stricter — only actual streets where Pac-Man "drives", not park footpaths.
+    // Excludes: motorway/trunk (too fast, no pedestrian), footway/path (random park trails)
+    const query = `[out:json][timeout:25];
+(
+  way["highway"~"^(residential|tertiary|secondary|primary|service|living_street|pedestrian|unclassified|tertiary_link|secondary_link|primary_link)$"]
+    (${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]});
+);
+out body;
+>;
+out skel qt;`;
+
+    const res = await fetchOverpassWithFallback(query, (s)=>this.setStatus('🎮 '+s));
+    if(!res){ debug('PM: all Overpass mirrors failed','err'); return null; }
+    debug('PM: building street graph from '+res.host,'ast');
+    // Re-use existing graph builder (snap + connected components)
+    const built = buildGraphFromOverpass(res.data);
+    return built;
+  },
+
+  // ===== C. Init game entities =====
+  initGame(){
+    this.score = 0;
+    this.cherriesTaken = 0;
+    this.lives = this.CFG.LIVES_START;
+    this.frightenedActive = false;
+    this.chainEatCount = 0;
+    this.pendingDir = null;
+
+    // Pac-Man starting node: near center of bbox, prefer junction with 3+ neighbors
+    const center = { lat: 55.9495, lng: -3.190 };
+    const pacStart = this.findStartNode(center, 3);
+    const startNode = this.streetGraph[pacStart];
+    // Set Pac on a stationary state — sitting at the node (fromId=toId, progress=0)
+    this.pac = {
+      fromId: pacStart, toId: pacStart, progress: 0,
+      lat: startNode.lat, lng: startNode.lng,
+      facing: 90, // east
+      speed: this.CFG.PAC_SPEED_MPS
+    };
+    // Give Pac an initial direction so he starts moving on the first edge automatically
+    // Pick the longest neighbor edge for visibility
+    if(startNode.neighbors.length > 0){
+      let bestNb = null, bestLen = 0;
+      for(const nb of startNode.neighbors){
+        const len = havM(startNode, this.streetGraph[nb]);
+        if(len > bestLen){ bestLen = len; bestNb = nb; }
+      }
+      if(bestNb){
+        this.pac.toId = bestNb;
+        this.pac.facing = this.bearingDeg(startNode, this.streetGraph[bestNb]);
+      }
+    }
+
+    // Place cherries on nodes nearest each artifact
+    this.cherries = [];
+    for(const a of ARTS){
+      const nid = this.findNearestGraphNode(a.lat, a.lng);
+      if(!nid) continue;
+      const node = this.streetGraph[nid];
+      const marker = L.marker([node.lat, node.lng], {
+        icon: L.divIcon({
+          className: 'pm-cherry-marker',
+          html: '<div style="font-size:22px;text-align:center;line-height:24px">🍒</div>',
+          iconSize: [24,24], iconAnchor: [12,12]
+        }),
+        zIndexOffset: 400,
+        interactive: false
+      }).addTo(map);
+      this.cherries.push({ art: a, nodeId: nid, taken: false, marker });
+    }
+
+    // Spawn ghosts FAR from Pac-Man (distance-weighted by Haversine)
+    const personalities = ['red','pink','blue','orange'];
+    const colors = { red:'#ff0000', pink:'#ffb8de', blue:'#00ffde', orange:'#ffb852' };
+    this.ghosts = [];
+    const usedNodes = new Set([pacStart]);
+    for(let i = 0; i < 4; i++){
+      const ghostNode = this.findFarStartNode(this.pac, usedNodes, 600); // min 600m away
+      usedNodes.add(ghostNode);
+      const gn = this.streetGraph[ghostNode];
+      const ghost = {
+        id: i,
+        personality: personalities[i],
+        color: colors[personalities[i]],
+        fromId: ghostNode, toId: ghostNode, progress: 0,
+        lat: gn.lat, lng: gn.lng,
+        speed: this.CFG.GHOST_SPEED_MPS,
+        plannedPath: [],
+        pathIdx: 0,
+        lastPlan: 0,
+        frightenedUntil: 0,
+        eatenUntil: 0,
+        homeNode: ghostNode,
+        marker: null
+      };
+      ghost.marker = L.marker([gn.lat, gn.lng], {
+        icon: this.ghostIcon(ghost.color),
+        zIndexOffset: 700,
+        interactive: false
+      }).addTo(map);
+      this.ghosts.push(ghost);
+    }
+
+    // Pac-Man marker
+    this.pacMarker = L.marker([this.pac.lat, this.pac.lng], {
+      icon: this.pacmanIcon(this.pac.facing),
+      zIndexOffset: 800,
+      interactive: false
+    }).addTo(map);
+
+    this.updateHUD();
+  },
+
+  // Find a node near a target lat/lng that has at least `minDegree` neighbors
+  findStartNode(target, minDegree){
+    const list = this.nodeKeys
+      .map(id => ({ id, d: havM(target, this.streetGraph[id]), deg: this.streetGraph[id].neighbors.length }))
+      .filter(o => o.deg >= minDegree)
+      .sort((a,b) => a.d - b.d);
+    return list.length > 0 ? list[0].id : this.nodeKeys[0];
+  },
+
+  // Find a node far from a point (for ghost spawn). Picks among nodes >minDistM, prefers junctions.
+  findFarStartNode(refPoint, exclude, minDistM){
+    const candidates = [];
+    for(const id of this.nodeKeys){
+      if(exclude.has(id)) continue;
+      const node = this.streetGraph[id];
+      const d = havM(refPoint, node);
+      if(d < minDistM) continue;
+      if(node.neighbors.length < 2) continue;
+      candidates.push({ id, d });
+    }
+    if(candidates.length === 0){
+      // fallback: just farthest junction
+      for(const id of this.nodeKeys){
+        if(exclude.has(id)) continue;
+        const node = this.streetGraph[id];
+        if(node.neighbors.length < 2) continue;
+        candidates.push({ id, d: havM(refPoint, node) });
+      }
+      candidates.sort((a,b) => b.d - a.d);
+    }
+    // Pick a random one from a far-ish slice for variety
+    candidates.sort((a,b) => b.d - a.d);
+    const top = candidates.slice(0, Math.min(20, candidates.length));
+    return top[Math.floor(Math.random() * top.length)].id;
+  },
+
+  findNearestGraphNode(lat, lng){
+    let best = null, bd = Infinity;
+    for(const id of this.nodeKeys){
+      const d = havM({lat, lng}, this.streetGraph[id]);
+      if(d < bd){ bd = d; best = id; }
+    }
+    return best;
+  },
+
+  // ===== D. Icons =====
+  pacmanIcon(facing){
+    // Pac-Man: yellow circle with wedge in `facing` direction (degrees, compass)
+    // facing 0=N, 90=E, 180=S, 270=W (bearing). SVG rotation is clockwise from north.
+    const rot = facing - 90; // SVG default mouth opens to right (east)
+    const html = `<div class="pm-pacman-marker" style="width:32px;height:32px;transform:rotate(${rot}deg);transition:transform .15s">
+      <svg viewBox="0 0 32 32" width="32" height="32">
+        <path d="M16,16 L32,8 A16,16 0 1,0 32,24 Z" fill="#ffd700" stroke="#1a0a2e" stroke-width="1.5"/>
+        <circle cx="20" cy="9" r="1.6" fill="#1a0a2e"/>
+      </svg>
+    </div>`;
+    return L.divIcon({ className: '', html, iconSize: [32,32], iconAnchor: [16,16] });
+  },
+
+  ghostIcon(color, frightened, eaten){
+    if(eaten){
+      // Just eyes returning home
+      const html = `<div class="pm-ghost-marker" style="width:28px;height:28px">
+        <svg viewBox="0 0 28 28" width="28" height="28">
+          <circle cx="9" cy="14" r="4" fill="white"/>
+          <circle cx="19" cy="14" r="4" fill="white"/>
+          <circle cx="10" cy="14" r="1.8" fill="#0033ff"/>
+          <circle cx="20" cy="14" r="1.8" fill="#0033ff"/>
+        </svg>
+      </div>`;
+      return L.divIcon({ className: '', html, iconSize:[28,28], iconAnchor:[14,14] });
+    }
+    const fillColor = frightened ? '#3b82f6' : color;
+    const eyeColor = frightened ? 'white' : 'white';
+    const pupilColor = frightened ? '#fbbf24' : '#000088';
+    const cls = frightened ? 'pm-ghost-marker pm-ghost-frightened' : 'pm-ghost-marker';
+    const mouth = frightened ? '<path d="M6,18 L9,16 L12,18 L15,16 L18,18 L21,16 L24,18" stroke="#fbbf24" stroke-width="1.2" fill="none"/>' : '';
+    const html = `<div class="${cls}" style="width:30px;height:30px">
+      <svg viewBox="0 0 30 30" width="30" height="30">
+        <path d="M2,24 Q2,9 15,9 Q28,9 28,24 L28,27 L24,24 L20,27 L15,24 L10,27 L6,24 L2,27 Z" fill="${fillColor}" stroke="#1a0a2e" stroke-width="1"/>
+        <circle cx="10" cy="15" r="3.2" fill="${eyeColor}"/>
+        <circle cx="20" cy="15" r="3.2" fill="${eyeColor}"/>
+        <circle cx="10.5" cy="15.5" r="1.5" fill="${pupilColor}"/>
+        <circle cx="20.5" cy="15.5" r="1.5" fill="${pupilColor}"/>
+        ${mouth}
+      </svg>
+    </div>`;
+    return L.divIcon({ className: '', html, iconSize:[30,30], iconAnchor:[15,15] });
+  },
+
+  // ===== E. Movement helpers =====
+  bearingDeg(from, to){
+    const lat1 = from.lat * Math.PI / 180;
+    const lat2 = to.lat * Math.PI / 180;
+    const dLng = (to.lng - from.lng) * Math.PI / 180;
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1)*Math.sin(lat2) - Math.sin(lat1)*Math.cos(lat2)*Math.cos(dLng);
+    let b = Math.atan2(y, x) * 180 / Math.PI;
+    return (b + 360) % 360;
+  },
+
+  // Angle difference in [0, 180]
+  angleDiff(a, b){
+    let d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+  },
+
+  // Interpolate lat/lng along edge [fromId → toId] at progress 0..1
+  posOnEdge(fromId, toId, progress){
+    const a = this.streetGraph[fromId], b = this.streetGraph[toId];
+    if(!a) return null;
+    if(!b || fromId === toId) return { lat: a.lat, lng: a.lng };
+    return {
+      lat: a.lat + (b.lat - a.lat) * progress,
+      lng: a.lng + (b.lng - a.lng) * progress
+    };
+  },
+
+  edgeLengthM(fromId, toId){
+    const a = this.streetGraph[fromId], b = this.streetGraph[toId];
+    if(!a || !b || fromId === toId) return 0;
+    return havM(a, b);
+  },
+
+  // Pick the next edge from `currentNode` whose bearing best matches `desiredDir` (degrees).
+  // Returns neighbor id, or null if no acceptable match. `maxAngle` limits acceptable mismatch.
+  chooseEdgeByDirection(currentNodeId, desiredDir, excludeNodeId, maxAngle){
+    const cn = this.streetGraph[currentNodeId];
+    if(!cn || !cn.neighbors.length) return null;
+    let best = null, bestAng = Infinity;
+    for(const nb of cn.neighbors){
+      if(nb === excludeNodeId) continue; // don't immediately U-turn
+      const nbNode = this.streetGraph[nb];
+      if(!nbNode) continue;
+      const b = this.bearingDeg(cn, nbNode);
+      const ang = this.angleDiff(b, desiredDir);
+      if(ang < bestAng){ bestAng = ang; best = nb; }
+    }
+    if(best === null || bestAng > maxAngle){
+      return null;
+    }
+    return best;
+  },
+
+  // Continue down the "straight-ish" direction by default — picks neighbor with closest bearing to `currentDir`,
+  // excluding the node we came from. If dead end, U-turn.
+  continueStraight(currentNodeId, currentDir, excludeNodeId){
+    const cn = this.streetGraph[currentNodeId];
+    if(!cn || !cn.neighbors.length) return null;
+    if(cn.neighbors.length === 1) return cn.neighbors[0]; // dead end → U-turn
+    let best = null, bestAng = Infinity;
+    for(const nb of cn.neighbors){
+      if(nb === excludeNodeId) continue;
+      const b = this.bearingDeg(cn, this.streetGraph[nb]);
+      const ang = this.angleDiff(b, currentDir);
+      if(ang < bestAng){ bestAng = ang; best = nb; }
+    }
+    return best || cn.neighbors[0];
+  },
+
+  // ===== F. Joystick (touch + mouse) =====
+  setupJoystick(){
+    const js = document.getElementById('pm-joystick');
+    if(!js) return;
+    this.joystick.lastPid = null;
+    js._pmStart = (e) => {
+      const t = (e.touches && e.touches[0]) || e;
+      const rect = js.getBoundingClientRect();
+      this.joystick.cx = rect.left + rect.width/2;
+      this.joystick.cy = rect.top + rect.height/2;
+      this.joystick.active = true;
+      this.joystick.lastPid = e.pointerId;
+      this.updateJoystick(t.clientX, t.clientY);
+      e.preventDefault();
+    };
+    js._pmMove = (e) => {
+      if(!this.joystick.active) return;
+      const t = (e.touches && e.touches[0]) || e;
+      this.updateJoystick(t.clientX, t.clientY);
+      e.preventDefault();
+    };
+    js._pmEnd = (e) => {
+      this.joystick.active = false;
+      this.joystick.dx = 0;
+      this.joystick.dy = 0;
+      // Reset knob position visually
+      const knob = document.getElementById('pm-knob');
+      if(knob) knob.style.transform = 'translate(0,0)';
+      // Don't clear pendingDir — let it persist until next junction (classic Pac-Man behavior)
+    };
+    js.addEventListener('pointerdown', js._pmStart, {passive: false});
+    window.addEventListener('pointermove', js._pmMove, {passive: false});
+    window.addEventListener('pointerup', js._pmEnd);
+    window.addEventListener('pointercancel', js._pmEnd);
+  },
+
+  teardownJoystick(){
+    const js = document.getElementById('pm-joystick');
+    if(!js) return;
+    if(js._pmStart) js.removeEventListener('pointerdown', js._pmStart);
+    if(js._pmMove) window.removeEventListener('pointermove', js._pmMove);
+    if(js._pmEnd){ window.removeEventListener('pointerup', js._pmEnd); window.removeEventListener('pointercancel', js._pmEnd); }
+  },
+
+  updateJoystick(x, y){
+    const dx = x - this.joystick.cx;
+    const dy = y - this.joystick.cy;
+    const r = Math.min(Math.hypot(dx, dy), 50);
+    const ang = Math.atan2(dy, dx);
+    const kx = Math.cos(ang) * r;
+    const ky = Math.sin(ang) * r;
+    const knob = document.getElementById('pm-knob');
+    if(knob) knob.style.transform = `translate(${kx}px, ${ky}px)`;
+    this.joystick.dx = kx;
+    this.joystick.dy = ky;
+    // Deadzone — smaller for snappier response
+    if(Math.hypot(kx, ky) < 8){
+      // too small — don't set direction
+      return;
+    }
+    // Convert atan2 (screen coords: dy>0 = south) to compass bearing
+    // Screen: ang=0 is east (dx>0), ang=PI/2 is south (dy>0)
+    // Compass: 0=N, 90=E. So compass = (90 - ang*180/PI + 360) % 360 ... but screen Y is flipped
+    // dx>0 → East (90°), dy<0 → North (0°), dy>0 → South (180°)
+    let bearing = Math.atan2(kx, -ky) * 180 / Math.PI;
+    bearing = (bearing + 360) % 360;
+    // Snap to 8 directions
+    const snap = Math.round(bearing / 45) * 45 % 360;
+    this.pendingDir = snap;
+  },
+
+  // ===== G. Keyboard (WASD / arrows) =====
+  setupKeyboard(){
+    this._pmKeydown = (e) => {
+      if(!this.active) return;
+      let dir = null;
+      const k = e.key.toLowerCase();
+      if(k === 'arrowup' || k === 'w') dir = 0;
+      else if(k === 'arrowright' || k === 'd') dir = 90;
+      else if(k === 'arrowdown' || k === 's') dir = 180;
+      else if(k === 'arrowleft' || k === 'a') dir = 270;
+      if(dir !== null){
+        this.pendingDir = dir;
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('keydown', this._pmKeydown);
+  },
+
+  teardownKeyboard(){
+    if(this._pmKeydown) window.removeEventListener('keydown', this._pmKeydown);
+  },
+
+  // ===== H. Game loop =====
+  loop(){
+    if(!this.active) return;
+    const now = performance.now();
+    const dt = Math.min((now - this.lastFrame) / 1000, 0.1); // cap dt at 100ms
+    this.lastFrame = now;
+
+    this.updatePac(dt);
+    this.updateGhosts(dt, now);
+    this.checkCollisions(now);
+    this.checkPowerExpiry(now);
+
+    // Smoothly follow Pac-Man with camera (loose follow)
+    if(this.pacMarker){
+      const c = map.getCenter();
+      const targetLat = c.lat * 0.92 + this.pac.lat * 0.08;
+      const targetLng = c.lng * 0.92 + this.pac.lng * 0.08;
+      map.setView([targetLat, targetLng], map.getZoom(), { animate: false });
+    }
+
+    this.loopId = requestAnimationFrame(()=>this.loop());
+  },
+
+  updatePac(dt){
+    const pac = this.pac;
+    const tol = this.CFG.TURN_TOLERANCE_DEG;
+
+    // ===== INSTANT RESPONSE: try mid-edge reversal or junction-anticipation =====
+    // If the player has pressed a direction that's nearly opposite to current facing,
+    // reverse on the current edge immediately (no wait for next junction). Classic Pac-Man does this.
+    if(this.pendingDir !== null && pac.fromId !== pac.toId){
+      const diffFromFacing = this.angleDiff(this.pendingDir, pac.facing);
+      // If pressing the OPPOSITE direction (>135°), flip the edge in place
+      if(diffFromFacing > 135){
+        const a = pac.fromId, b = pac.toId;
+        pac.fromId = b; pac.toId = a;
+        pac.progress = 1 - pac.progress;
+        pac.facing = this.bearingDeg(this.streetGraph[pac.fromId], this.streetGraph[pac.toId]);
+        // Don't consume pendingDir — let it carry into the junction logic too
+      }
+    }
+
+    // If stationary (fromId == toId), try to set a new direction from pendingDir
+    if(pac.fromId === pac.toId){
+      if(this.pendingDir !== null){
+        const next = this.chooseEdgeByDirection(pac.fromId, this.pendingDir, null, tol);
+        if(next){
+          pac.toId = next;
+          pac.progress = 0;
+          pac.facing = this.bearingDeg(this.streetGraph[pac.fromId], this.streetGraph[next]);
+        }
+      } else {
+        // No input — try to keep last facing
+        const next = this.chooseEdgeByDirection(pac.fromId, pac.facing, null, tol);
+        if(next){
+          pac.toId = next;
+          pac.progress = 0;
+          pac.facing = this.bearingDeg(this.streetGraph[pac.fromId], this.streetGraph[next]);
+        }
+      }
+      this.updatePacMarker();
+      return;
+    }
+
+    // Moving along edge
+    const edgeLen = this.edgeLengthM(pac.fromId, pac.toId);
+    if(edgeLen <= 0.1){
+      // degenerate edge — snap
+      pac.fromId = pac.toId; pac.progress = 0;
+      this.updatePacMarker();
+      return;
+    }
+    pac.progress += (pac.speed * dt) / edgeLen;
+
+    if(pac.progress >= 1){
+      // Reached node — decide next
+      const arrivedAt = pac.toId;
+      const cameFrom = pac.fromId;
+      const currentDir = pac.facing;
+      let next = null;
+      if(this.pendingDir !== null){
+        // Try to honor pendingDir (joystick/keyboard input). Allow U-turn here too.
+        next = this.chooseEdgeByDirection(arrivedAt, this.pendingDir, null, tol);
+        // If best match is "go back where we came from", that's OK — user explicitly wants it
+      }
+      if(!next){
+        // No valid turn requested — continue straight (no U-turn unless dead end)
+        next = this.continueStraight(arrivedAt, currentDir, cameFrom);
+      }
+      if(!next){
+        // dead end with no fallback (shouldn't happen) — stop
+        pac.fromId = arrivedAt; pac.toId = arrivedAt; pac.progress = 0;
+      } else {
+        pac.fromId = arrivedAt;
+        pac.toId = next;
+        pac.progress = 0;
+        pac.facing = this.bearingDeg(this.streetGraph[arrivedAt], this.streetGraph[next]);
+      }
+    }
+    // Update position
+    const p = this.posOnEdge(pac.fromId, pac.toId, pac.progress);
+    if(p){ pac.lat = p.lat; pac.lng = p.lng; }
+    this.updatePacMarker();
+  },
+
+  updatePacMarker(){
+    if(!this.pacMarker) return;
+    this.pacMarker.setLatLng([this.pac.lat, this.pac.lng]);
+    // Update icon rotation only on facing change to avoid churn — cheap to re-set every frame though
+    this.pacMarker.setIcon(this.pacmanIcon(this.pac.facing));
+  },
+
+  // ===== I. Ghost AI =====
+  updateGhosts(dt, now){
+    for(const gh of this.ghosts){
+      // Determine current speed
+      let speed = this.CFG.GHOST_SPEED_MPS;
+      const eaten = gh.eatenUntil > now;
+      const frightened = !eaten && gh.frightenedUntil > now;
+      if(frightened) speed = this.CFG.GHOST_FRIGHT_SPEED_MPS;
+      if(eaten) speed = this.CFG.GHOST_SPEED_MPS * 1.4; // hurries back to spawn
+
+      // Replan path occasionally
+      if(now - gh.lastPlan > this.CFG.GHOST_AI_INTERVAL || gh.plannedPath.length === 0 || gh.pathIdx >= gh.plannedPath.length){
+        this.planGhostPath(gh, frightened, eaten);
+        gh.lastPlan = now;
+      }
+
+      // Move along plannedPath
+      if(gh.fromId === gh.toId){
+        // Stationary — pick next from path
+        if(gh.plannedPath.length > 0 && gh.pathIdx < gh.plannedPath.length){
+          const next = gh.plannedPath[gh.pathIdx];
+          if(next && next !== gh.fromId && this.streetGraph[next] && this.streetGraph[gh.fromId].neighbors.includes(next)){
+            gh.toId = next; gh.progress = 0;
+          } else {
+            // skip invalid step
+            gh.pathIdx++;
+          }
+        }
+      } else {
+        const edgeLen = this.edgeLengthM(gh.fromId, gh.toId);
+        if(edgeLen <= 0.1){
+          gh.fromId = gh.toId; gh.progress = 0;
+          gh.pathIdx++;
+        } else {
+          gh.progress += (speed * dt) / edgeLen;
+          if(gh.progress >= 1){
+            gh.fromId = gh.toId; gh.progress = 0;
+            gh.pathIdx++;
+            // Pick next from path
+            if(gh.plannedPath.length > 0 && gh.pathIdx < gh.plannedPath.length){
+              const next = gh.plannedPath[gh.pathIdx];
+              if(next && this.streetGraph[next] && this.streetGraph[gh.fromId].neighbors.includes(next)){
+                gh.toId = next; gh.progress = 0;
+              }
+            }
+          }
+        }
+      }
+
+      // If eaten and reached homeNode, respawn
+      if(eaten && gh.fromId === gh.homeNode && gh.toId === gh.homeNode){
+        gh.eatenUntil = 0;
+        gh.frightenedUntil = 0;
+        gh.plannedPath = [];
+        gh.pathIdx = 0;
+      }
+
+      // Update position & marker
+      const p = this.posOnEdge(gh.fromId, gh.toId, gh.progress);
+      if(p){ gh.lat = p.lat; gh.lng = p.lng; }
+      if(gh.marker){
+        gh.marker.setLatLng([gh.lat, gh.lng]);
+        gh.marker.setIcon(this.ghostIcon(gh.color, frightened, eaten));
+      }
+    }
+  },
+
+  planGhostPath(gh, frightened, eaten){
+    // Determine target node based on personality + state
+    let targetNode;
+    const pacNode = this.findNearestGraphNode(this.pac.lat, this.pac.lng);
+    if(eaten){
+      targetNode = gh.homeNode;
+    } else if(frightened){
+      // Run away — pick a node far from Pac-Man
+      targetNode = this.pickFleeNode(this.pac, gh);
+    } else {
+      // Chase logic by personality
+      switch(gh.personality){
+        case 'red':
+          // Direct chase
+          targetNode = pacNode;
+          break;
+        case 'pink':
+          // Ambush — target 4 nodes ahead of Pac-Man in current direction
+          targetNode = this.predictPacFuture(4) || pacNode;
+          break;
+        case 'blue':
+          // Flanking — target the node opposite to red's approach (simpler: pick a node 2 ahead, on the other side)
+          // We approximate: pick node that's nearest to Pac but from a different "quadrant" relative to ghost
+          targetNode = this.pickFlankNode(gh) || pacNode;
+          break;
+        case 'orange':
+          // Patrol — if close (<200m), retreat to home; else random wander toward Pac
+          const d = havM(gh, this.pac);
+          if(d < 200) targetNode = gh.homeNode;
+          else targetNode = pacNode;
+          break;
+        default:
+          targetNode = pacNode;
+      }
+    }
+    if(!targetNode || targetNode === gh.fromId){
+      // No useful target — random walk
+      gh.plannedPath = [this.pickRandomNeighbor(gh.fromId)].filter(Boolean);
+      gh.pathIdx = 0;
+      return;
+    }
+    const result = this.pmAStar(gh.fromId, targetNode, 8000);
+    if(result && result.path && result.path.length > 1){
+      // path includes start node — skip it
+      gh.plannedPath = result.path.slice(1);
+      gh.pathIdx = 0;
+    } else {
+      // fall back: random neighbor
+      const rn = this.pickRandomNeighbor(gh.fromId);
+      gh.plannedPath = rn ? [rn] : [];
+      gh.pathIdx = 0;
+    }
+  },
+
+  pickRandomNeighbor(nodeId){
+    const n = this.streetGraph[nodeId];
+    if(!n || !n.neighbors.length) return null;
+    return n.neighbors[Math.floor(Math.random() * n.neighbors.length)];
+  },
+
+  // Predict where Pac will be N edges ahead by walking the current direction
+  predictPacFuture(steps){
+    const pac = this.pac;
+    let curId = pac.fromId, prevId = null;
+    let dir = pac.facing;
+    for(let i = 0; i < steps; i++){
+      const next = this.chooseEdgeByDirection(curId, dir, prevId, 90)
+                 || this.continueStraight(curId, dir, prevId);
+      if(!next || next === curId) break;
+      prevId = curId;
+      curId = next;
+      dir = this.bearingDeg(this.streetGraph[prevId], this.streetGraph[curId]);
+    }
+    return curId;
+  },
+
+  pickFlankNode(gh){
+    // Pick a node on the far side of Pac-Man from ghost (vector-doubled point, then snap to nearest node)
+    const dLat = this.pac.lat - gh.lat;
+    const dLng = this.pac.lng - gh.lng;
+    const farLat = this.pac.lat + dLat * 0.3;
+    const farLng = this.pac.lng + dLng * 0.3;
+    return this.findNearestGraphNode(farLat, farLng);
+  },
+
+  pickFleeNode(pac, gh){
+    // Pick a node that's far from Pac and reasonably close to ghost (escape route)
+    // Strategy: pick neighbor of ghost's current node whose bearing is opposite to Pac's bearing
+    const fromGhost = this.streetGraph[gh.fromId];
+    if(!fromGhost) return gh.homeNode;
+    const dirFromPac = this.bearingDeg(this.pac, fromGhost); // direction Pac→Ghost = away
+    const next = this.chooseEdgeByDirection(gh.fromId, dirFromPac, null, 135);
+    if(next){
+      // Walk a few more steps in that direction by predicting
+      let curId = next, prevId = gh.fromId, dir = dirFromPac;
+      for(let i = 0; i < 3; i++){
+        const n2 = this.continueStraight(curId, dir, prevId);
+        if(!n2 || n2 === curId) break;
+        prevId = curId; curId = n2;
+        dir = this.bearingDeg(this.streetGraph[prevId], this.streetGraph[curId]);
+      }
+      return curId;
+    }
+    return gh.homeNode;
+  },
+
+  // A* on streetGraph (lighter than the Holyrood one, with iteration cap)
+  pmAStar(startId, goalId, maxIter){
+    const graph = this.streetGraph;
+    if(!graph[startId] || !graph[goalId]) return null;
+    if(startId === goalId) return { path: [startId], dist: 0 };
+    const open = new Set([startId]);
+    const cameFrom = {};
+    const gScore = { [startId]: 0 };
+    const fScore = { [startId]: havM(graph[startId], graph[goalId]) };
+    let iter = 0;
+    const limit = maxIter || 5000;
+    while(open.size > 0){
+      if(++iter > limit) return null;
+      let cur = null, low = Infinity;
+      for(const id of open){ if(fScore[id] < low){ low = fScore[id]; cur = id; } }
+      if(cur === goalId){
+        const path = [cur];
+        while(cameFrom[cur]){ cur = cameFrom[cur]; path.unshift(cur); }
+        return { path, dist: gScore[goalId] };
+      }
+      open.delete(cur);
+      const cn = graph[cur];
+      if(!cn || !cn.neighbors) continue;
+      for(const nb of cn.neighbors){
+        const nbN = graph[nb];
+        if(!nbN) continue;
+        const tg = gScore[cur] + havM(cn, nbN);
+        if(tg < (gScore[nb] ?? Infinity)){
+          cameFrom[nb] = cur;
+          gScore[nb] = tg;
+          fScore[nb] = tg + havM(nbN, graph[goalId]);
+          open.add(nb);
+        }
+      }
+    }
+    return null;
+  },
+
+  // ===== J. Collisions, cherries, ghosts eaten =====
+  checkCollisions(now){
+    const pac = this.pac;
+    // Cherries
+    for(const c of this.cherries){
+      if(c.taken) continue;
+      const d = havM(pac, c.marker.getLatLng());
+      if(d < this.CFG.CHERRY_RADIUS_M){
+        c.taken = true;
+        map.removeLayer(c.marker);
+        this.cherriesTaken++;
+        this.score += this.CFG.SCORE_CHERRY;
+        // Trigger power mode! Every cherry is a power pellet (5 total = 5 power moments)
+        this.activateFrightened(now);
+        this.setStatus('🍒 +'+this.CFG.SCORE_CHERRY+' · POWER UP! 👻 τρώγε φαντάσματα!');
+        setTimeout(()=>this.setStatus(''), 2200);
+        this.updateHUD();
+        if(this.cherriesTaken >= this.cherries.length){
+          this.win();
+          return;
+        }
+      }
+    }
+    // Ghosts
+    for(const gh of this.ghosts){
+      const eaten = gh.eatenUntil > now;
+      if(eaten) continue; // already eaten, can't catch again
+      const d = havM(pac, { lat: gh.lat, lng: gh.lng });
+      if(d < this.CFG.CATCH_RADIUS_M){
+        const frightened = gh.frightenedUntil > now;
+        if(frightened){
+          // Eat ghost!
+          gh.eatenUntil = now + 10000; // 10 sec to return home
+          this.chainEatCount++;
+          const bonus = this.CFG.SCORE_GHOST_EAT * this.chainEatCount; // 400, 800, 1200, 1600
+          this.score += bonus;
+          this.setStatus('👻 +'+bonus+' πόντοι! ('+this.chainEatCount+'x combo)');
+          setTimeout(()=>this.setStatus(''), 1800);
+          this.updateHUD();
+        } else {
+          // Pac-Man caught!
+          this.loseLife();
+          return;
+        }
+      }
+    }
+  },
+
+  activateFrightened(now){
+    this.frightenedActive = true;
+    this.frightenedUntil = now + this.CFG.POWER_DURATION_MS;
+    this.chainEatCount = 0;
+    for(const gh of this.ghosts){
+      if(gh.eatenUntil > now) continue;
+      gh.frightenedUntil = this.frightenedUntil;
+      // Reverse their direction (classic behavior)
+      if(gh.fromId !== gh.toId){
+        const a = gh.fromId, b = gh.toId;
+        gh.fromId = b; gh.toId = a;
+        gh.progress = 1 - gh.progress;
+      }
+      gh.plannedPath = [];
+      gh.pathIdx = 0;
+    }
+  },
+
+  checkPowerExpiry(now){
+    if(this.frightenedActive && now >= this.frightenedUntil){
+      this.frightenedActive = false;
+      this.chainEatCount = 0;
+      for(const gh of this.ghosts){
+        if(gh.frightenedUntil <= now) gh.frightenedUntil = 0;
+      }
+    }
+  },
+
+  loseLife(){
+    this.lives--;
+    this.updateHUD();
+    if(this.lives <= 0){
+      this.gameOver(false);
+      return;
+    }
+    this.setStatus('💀 Σε έπιασαν! '+this.lives+' ζωή/ές απέμειναν.');
+    setTimeout(()=>this.setStatus(''), 2000);
+    // Respawn Pac at original start node, reset ghosts to home
+    const start = this.findStartNode({lat:55.9495, lng:-3.190}, 3);
+    const sn = this.streetGraph[start];
+    this.pac.fromId = start; this.pac.toId = start; this.pac.progress = 0;
+    this.pac.lat = sn.lat; this.pac.lng = sn.lng;
+    this.pac.facing = 90;
+    this.pendingDir = null;
+    for(const gh of this.ghosts){
+      const hn = this.streetGraph[gh.homeNode];
+      gh.fromId = gh.homeNode; gh.toId = gh.homeNode; gh.progress = 0;
+      gh.lat = hn.lat; gh.lng = hn.lng;
+      gh.frightenedUntil = 0; gh.eatenUntil = 0;
+      gh.plannedPath = []; gh.pathIdx = 0;
+    }
+  },
+
+  gameOver(won){
+    this.active = false;
+    if(this.loopId){ cancelAnimationFrame(this.loopId); this.loopId = null; }
+    const ov = document.getElementById('pm-gameover');
+    const title = document.getElementById('pm-go-title');
+    if(won){
+      title.textContent = '🏆 ΝΙΚΗΣΕΣ!';
+      title.style.color = '#10b981';
+      title.style.textShadow = '0 0 16px #10b981, 0 0 32px #059669';
+    } else {
+      title.textContent = 'GAME OVER';
+      title.style.color = '';
+      title.style.textShadow = '';
+    }
+    ov.classList.add('show');
+    document.getElementById('pm-final-score').textContent = this.score;
+    document.getElementById('pm-final-cherries').textContent = this.cherriesTaken;
+    document.getElementById('pm-hud').classList.remove('show');
+    document.getElementById('pm-joystick').classList.remove('show');
+  },
+
+  win(){
+    // Bonus for remaining lives and speed
+    const lifeBonus = this.lives * 500;
+    const elapsed = (performance.now() - this.startTime) / 1000;
+    const speedBonus = Math.max(0, Math.floor((180 - elapsed) * 10)); // bonus if under 3 min
+    this.score += lifeBonus + speedBonus;
+    this.updateHUD();
+    this.setStatus('🏆 +'+lifeBonus+' ζωές, +'+speedBonus+' ταχύτητα!');
+    setTimeout(()=>this.gameOver(true), 1200);
+  },
+
+  // ===== K. HUD =====
+  updateHUD(){
+    document.getElementById('pm-hud-score').textContent = this.score;
+    document.getElementById('pm-hud-cherries').textContent = this.cherriesTaken + '/' + this.cherries.length;
+    document.getElementById('pm-hud-lives').textContent = '❤'.repeat(Math.max(0,this.lives));
+  },
+};
 
 window.addEventListener('load',async()=>{
   init();
