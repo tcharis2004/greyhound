@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v21 — Edinburgh HP Hunt</title>
+<title>Greyhound v22 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -189,7 +189,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v21 ghost slower + safe gap</div>
+      <div id="app-sub">Edinburgh · v22 dots eat fix + ghost start</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -1301,27 +1301,39 @@ function updateProgress(){
   const pacLeft=trackStart+(pct/100)*trackW;
   document.getElementById('gp-pacman').style.left=pacLeft+'px';
 
-  // v21: Ghost ALWAYS stays at least 100px behind Pac-Man, never ahead
-  // If Pac-Man hasn't moved enough yet, hide ghost (no risk of touching)
+  // v22: Ghost ALWAYS stays behind Pac-Man. Hide entirely until safe space exists.
   const ghostEl=document.getElementById('gp-ghost');
   const SAFE_GAP=100;
-  if(pacLeft-trackStart < SAFE_GAP+30){
-    // Not enough room — hide ghost
-    ghostEl.style.opacity='0';
+  const MIN_ROOM_NEEDED=SAFE_GAP+30; // ghost needs at least this much room from start
+  if(pacLeft-trackStart < MIN_ROOM_NEEDED){
+    // Pac-Man hasn't moved enough — hide ghost, no risk of crossing
+    if(ghostEl.style.opacity!=='0'){
+      ghostEl.style.opacity='0';
+    }
   } else {
-    ghostEl.style.opacity='1';
-    const ghostNear=pacLeft-SAFE_GAP;          // closest the ghost ever gets
-    const ghostFar=trackStart+15;              // far end (near start flag)
-    // Make sure near is always strictly less than pacLeft (safety check)
-    const safeNear=Math.min(ghostNear, pacLeft-SAFE_GAP);
-    ghostEl.style.setProperty('--ghost-near', safeNear+'px');
+    // Safe to show ghost — but if it was hidden, restart animation cleanly from left
+    const wasHidden=ghostEl.style.opacity==='0'||ghostEl.style.opacity==='';
+    const ghostNear=pacLeft-SAFE_GAP;
+    const ghostFar=trackStart+15;
+    ghostEl.style.setProperty('--ghost-near', ghostNear+'px');
     ghostEl.style.setProperty('--ghost-far', ghostFar+'px');
+    if(wasHidden){
+      // Force animation restart from the "far" (left) side so ghost never appears in front
+      ghostEl.style.animation='none';
+      ghostEl.offsetWidth; // force reflow
+      ghostEl.style.animation='ghostPatrol 8s ease-in-out infinite';
+    }
+    ghostEl.style.opacity='1';
   }
 
-  // Eat dots proportionally to progress
-  document.querySelectorAll('.gp-dot').forEach((d,i)=>{
-    const dotPct=(i/(PACMAN_DOT_COUNT-1))*100;
-    if(dotPct<=pct-2)d.classList.add('eaten');
+  // v22: Eat dots based on actual pixel position — every dot left of Pac-Man is gone
+  const dots=document.querySelectorAll('.gp-dot');
+  const dotsCount=dots.length;
+  dots.forEach((d,i)=>{
+    // Each dot sits at: trackStart + (i / (count-1)) * trackW
+    const dotPx=trackStart+(i/(dotsCount-1))*trackW;
+    // Pac-Man "mouth" is at pacLeft. Anything left of pacman gets eaten.
+    if(dotPx<=pacLeft)d.classList.add('eaten');
     else d.classList.remove('eaten');
   });
 
