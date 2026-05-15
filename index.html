@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Greyhound v18 — Edinburgh HP Hunt</title>
+<title>Greyhound v19 — Edinburgh HP Hunt</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -71,18 +71,24 @@ body{font-family:var(--font-sans)}
 .sec-lbl.collapsed .toggle-arrow{transform:rotate(-90deg)}
 .sec-body{transition:max-height .3s ease,opacity .2s;overflow:hidden}
 .sec-body.hidden{max-height:0!important;opacity:0;margin:0;padding:0}
-/* v18: Pac-Man progress bar — taller, full-width dots */
+/* v19: Pac-Man progress bar — white dots, wobbling slower ghost */
 #greyhound-progress{position:fixed;bottom:0;left:0;right:0;height:44px;background:#000;border-top:3px solid #ffd700;z-index:600;display:none;pointer-events:none;overflow:hidden}
 #gp-dots{position:absolute;top:50%;left:50px;right:50px;height:24px;transform:translateY(-50%);display:flex;align-items:center;justify-content:space-between}
-.gp-dot{width:8px;height:8px;background:#ffd700;border-radius:50%;box-shadow:0 0 6px #ffd700;transition:opacity 0.15s,transform 0.15s;flex-shrink:0}
+.gp-dot{width:5px;height:5px;background:#ffffff;border-radius:50%;box-shadow:0 0 4px rgba(255,255,255,0.7);transition:opacity 0.12s,transform 0.12s;flex-shrink:0}
 .gp-dot.eaten{opacity:0;transform:scale(0)}
 #gp-pacman{position:absolute;top:50%;left:50px;width:30px;height:30px;transform:translate(-50%,-50%);transition:left 0.45s cubic-bezier(0.4,0,0.2,1);z-index:2}
 #gp-pacman svg{width:100%;height:100%}
-#gp-ghost{position:absolute;top:50%;left:50px;width:26px;height:26px;transform:translate(-50%,-50%);transition:left 0.45s cubic-bezier(0.4,0,0.2,1) 0.08s,opacity 0.3s;z-index:1}
+/* v19: Ghost moves slower (0.9s vs Pac-Man 0.45s), wobbles back and forth */
+#gp-ghost{position:absolute;top:50%;left:50px;width:24px;height:24px;transform:translate(-50%,-50%);transition:left 0.9s ease-in-out,opacity 0.3s;z-index:1;animation:ghostWobble 1.4s ease-in-out infinite}
+@keyframes ghostWobble{
+  0%,100%{margin-left:0}
+  25%{margin-left:-6px}
+  50%{margin-left:0}
+  75%{margin-left:6px}
+}
 #gp-pct{position:absolute;top:50%;right:6px;transform:translateY(-50%);color:#ffd700;font-size:10px;font-weight:900;font-family:monospace;text-shadow:0 0 8px #ffd700;white-space:nowrap}
 #gp-start{position:absolute;top:50%;left:6px;transform:translateY(-50%);font-size:16px}
 .has-progress #fab{bottom:56px!important}
-/* v18: Lift legend so Pac-Man doesn't cover it */
 .has-progress #legend{bottom:52px!important}
 select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-main);border:1px solid var(--border);border-radius:5px;padding:7px 9px}
 .action-btn{width:100%;font-size:12px;padding:9px;cursor:pointer;border-radius:5px;margin-bottom:5px;border:none;min-height:38px;font-weight:500}
@@ -184,7 +190,7 @@ select.ctl{width:100%;font-size:12px;background:var(--bg-dark);color:var(--text-
   <div id="topbar">
     <div>
       <div id="app-name">Greyhound</div>
-      <div id="app-sub">Edinburgh · v18 pacman fix + parchment in filters</div>
+      <div id="app-sub">Edinburgh · v19 pacman polish</div>
     </div>
     <div class="tb-stats">
       <div class="tb-stat"><div class="lbl">Διαδρ.</div><div class="val" id="t-route">0</div></div>
@@ -1260,8 +1266,8 @@ function updPB(){
   updateProgress();
 }
 
-// v18: Pac-Man progress bar
-const PACMAN_DOT_COUNT=36;
+// v19: Pac-Man progress bar — 108 white dots, slow wobbling ghost
+const PACMAN_DOT_COUNT=108;
 let pacmanMouthOpen=true;
 let pacmanAnimInterval=null;
 
@@ -1294,7 +1300,8 @@ function updateProgress(){
   const trackStart=50, trackEnd=barW-50;
   const trackW=Math.max(trackEnd-trackStart,100);
   const pacLeft=trackStart+(pct/100)*trackW;
-  const ghostLeft=Math.max(trackStart+10,pacLeft-55);
+  // v19: Ghost stays 60px behind so wobble (±6px) doesn't touch Pac-Man
+  const ghostLeft=Math.max(trackStart+10,pacLeft-60);
 
   document.getElementById('gp-pacman').style.left=pacLeft+'px';
   document.getElementById('gp-ghost').style.left=ghostLeft+'px';
